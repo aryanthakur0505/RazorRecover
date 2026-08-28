@@ -1,0 +1,294 @@
+import crypto from "crypto";
+import { prisma } from "../db";
+import { writeAudit } from "./auditService";
+import { createPaymentLink, createRetryOrder } from "./razorpay";
+import { evaluatePolicy } from "./policyEngine";
+import { countRecentCommunications } from "./customerStats";
+import { RECOVERY_COST, AI_COST_PER_CALL_PAISE } from "../types";
+import { RecoveryAction, RecoveryAttempt } from "@prisma/client";
+
+export function buildIdempotencyKey(paymentId: string, attemptNumber: number, action: RecoveryAction) {
+  return crypto.createHash("sha256").update(`${paymentId}:${attemptNumber}:${action}`).digest("hex");
+}
+
+export interface ExecuteOptions {
+  /** Simulation mode never calls the real Razorpay API — used by the seeded dataset generator so
+   *  1000-payment simulations don't hammer Test Mode or require anyone to actually pay. */
+  simulate?: boolean;
+  /** Deterministic RNG for simulation outcome resolution (seeded PRNG from simulationService). */
+  rng?: () => number;
+}
+
+/**
+ * Executes one (already-decided, already-approved-if-required) RecoveryAttempt.
+ * Re-runs every guardrail check right before touching Razorpay — this is the single choke
+ * point all financial actions must pass through, whether they originated from the deterministic
+ * engine, the AI agent, or a human approval.
+ */
+export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {}) {
+  const attempt = await prisma.recoveryAttempt.findUniqueOrThrow({
+    where: { id: attemptId },
+    include: { payment: { include: { customer: true } } },
+  });
+
+  // Idempotency: if this attempt has already moved past PENDING/APPROVED, do nothing.
+  if (!["PENDING", "APPROVED"].includes(attempt.status)) {
+    return attempt;
+  }
+
+  const policy = await prisma.recoveryPolicy.findUniqueOrThrow({ where: { merchantId: attempt.merchantId } });
+  const payment = attempt.payment;
+
+  const lastAttempt = await prisma.recoveryAttempt.findFirst({
+    where: { paymentId: payment.id, id: { not: attempt.id }, status: { in: ["EXECUTED", "SUCCEEDED", "FAILED"] } },
+    orderBy: { createdAt: "desc" },
+  });
+  const minutesSinceLastAttempt = lastAttempt
+    ? Math.floor((Date.now() - lastAttempt.createdAt.getTime()) / 60000)
+    : null;
+
+  const commsInPeriod = await countRecentCommunications(
+    payment.customerId,
+    attempt.merchantId,
+    policy.communicationPeriodHours,
+  );
+
+  const evaluation = evaluatePolicy({
+    action: attempt.action,
+    attemptNumber: attempt.attemptNumber,
+    amount: payment.amount,
+    paymentStatus: payment.status,
+    failureCategory: payment.failureCategory,
+    isSuspicious: payment.isSuspicious,
+    communicationsInPeriod: commsInPeriod,
+    minutesSinceLastAttempt,
+    currentHourLocal: new Date().getHours(),
+    policy,
+  });
+
+  if (!evaluation.allowed) {
+    const stopped = await prisma.recoveryAttempt.update({
+      where: { id: attempt.id },
+      data: { status: "STOPPED", policyChecks: evaluation.checks as any, outcome: evaluation.stopReason },
+    });
+    await writeAudit({
+      merchantId: attempt.merchantId,
+      paymentId: payment.id,
+      customerId: payment.customerId,
+      attemptId: attempt.id,
+      eventType: "POLICY_BLOCKED",
+      policyChecks: evaluation.checks,
+      action: attempt.action,
+      outcome: evaluation.stopReason,
+    });
+    return stopped;
+  }
+
+  if (evaluation.requiresApproval && attempt.approvalStatus !== "APPROVED") {
+    const awaiting = await prisma.recoveryAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: "AWAITING_APPROVAL",
+        requiresApproval: true,
+        approvalStatus: attempt.approvalStatus === "REJECTED" ? "REJECTED" : "PENDING",
+        policyChecks: evaluation.checks as any,
+      },
+    });
+    await writeAudit({
+      merchantId: attempt.merchantId,
+      paymentId: payment.id,
+      customerId: payment.customerId,
+      attemptId: attempt.id,
+      eventType: "APPROVAL_REQUIRED",
+      policyChecks: evaluation.checks,
+      action: attempt.action,
+      approvalStatus: "PENDING",
+    });
+    return awaiting;
+  }
+
+  await prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { status: "EXECUTING" } });
+
+  let razorpayResponse: unknown = null;
+  try {
+    razorpayResponse = await performAction(attempt, opts);
+  } catch (err) {
+    const failed = await prisma.recoveryAttempt.update({
+      where: { id: attempt.id },
+      data: { status: "FAILED", outcome: "API_ERROR", razorpayResponse: { error: String(err) } },
+    });
+    await writeAudit({
+      merchantId: attempt.merchantId,
+      paymentId: payment.id,
+      customerId: payment.customerId,
+      attemptId: attempt.id,
+      eventType: "ACTION_EXECUTION_FAILED",
+      action: attempt.action,
+      outcome: "API_ERROR",
+      apiResult: { error: String(err) },
+    });
+    return failed;
+  }
+
+  const executed = await prisma.recoveryAttempt.update({
+    where: { id: attempt.id },
+    data: {
+      status: "EXECUTED",
+      executedAt: new Date(),
+      razorpayResponse: razorpayResponse as any,
+      policyChecks: evaluation.checks as any,
+    },
+  });
+
+  await writeAudit({
+    merchantId: attempt.merchantId,
+    paymentId: payment.id,
+    customerId: payment.customerId,
+    attemptId: attempt.id,
+    eventType: "ACTION_EXECUTED",
+    action: attempt.action,
+    apiResult: razorpayResponse,
+    policyChecks: evaluation.checks,
+  });
+
+  // STOP/ESCALATE have no external outcome to wait for.
+  if (attempt.action === "STOP") {
+    return prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { status: "STOPPED", outcome: "STOPPED_BY_POLICY" } });
+  }
+  if (attempt.action === "ESCALATE") {
+    return executed; // stays EXECUTED/AWAITING_APPROVAL until a human decides
+  }
+
+  // Simulation resolves the outcome immediately (deterministic seeded probability).
+  if (opts.simulate) {
+    return resolveSimulatedOutcome(executed, opts.rng ?? Math.random);
+  }
+
+  // Live mode: outcome resolves later via webhook (order.paid / payment.captured).
+  return executed;
+}
+
+async function performAction(
+  attempt: RecoveryAttempt & { payment: { amount: number; currency: string; customer: { name: string; email: string } } },
+  opts: ExecuteOptions,
+) {
+  const { payment } = attempt;
+
+  if (opts.simulate) {
+    // Synthetic but shaped like a real Razorpay response, so downstream code paths are identical.
+    if (attempt.action === "RETRY") {
+      return { simulated: true, id: `order_sim_${attempt.id}`, status: "created" };
+    }
+    if (attempt.action === "PAYMENT_LINK") {
+      return { simulated: true, id: `plink_sim_${attempt.id}`, short_url: `https://rzp.io/sim/${attempt.id}`, status: "created" };
+    }
+    return { simulated: true };
+  }
+
+  if (attempt.action === "RETRY") {
+    return createRetryOrder({
+      amount: payment.amount,
+      currency: payment.currency,
+      receipt: attempt.idempotencyKey,
+    });
+  }
+  if (attempt.action === "PAYMENT_LINK") {
+    return createPaymentLink({
+      amount: payment.amount,
+      currency: payment.currency,
+      customerName: payment.customer.name,
+      customerEmail: payment.customer.email,
+      description: "Complete your payment",
+      referenceId: attempt.idempotencyKey,
+    });
+  }
+  return null;
+}
+
+async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => number) {
+  const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
+  // Recovery score IS the probability estimate — that's the entire point of computing it.
+  const probability = (payment.recoveryScore ?? 30) / 100;
+  const succeeded = rng() < probability;
+
+  const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);
+  const revenueRecovered = succeeded ? payment.amount : 0;
+  const netRecovered = revenueRecovered - cost;
+
+  const updated = await prisma.recoveryAttempt.update({
+    where: { id: attempt.id },
+    data: {
+      status: succeeded ? "SUCCEEDED" : "FAILED",
+      outcome: succeeded ? "RECOVERED" : "NOT_RECOVERED",
+      revenueRecovered,
+      recoveryCost: cost,
+      netRecovered,
+    },
+  });
+
+  if (succeeded) {
+    await prisma.payment.update({ where: { id: payment.id }, data: { status: "CAPTURED" } });
+  }
+
+  await writeAudit({
+    merchantId: attempt.merchantId,
+    paymentId: payment.id,
+    customerId: payment.customerId,
+    attemptId: attempt.id,
+    eventType: "OUTCOME_RECORDED",
+    action: attempt.action,
+    outcome: updated.outcome ?? undefined,
+    revenueRecovered,
+    recoveryCost: cost,
+    netRecovered,
+  });
+
+  return updated;
+}
+
+/**
+ * Called from the webhook handler when a real `order.paid` / `payment.captured` /
+ * `payment.failed` (post-retry) event arrives, to finalize whichever EXECUTED attempt it
+ * corresponds to. Idempotent: attempts already resolved are left untouched.
+ */
+export async function resolveLiveOutcome(paymentId: string, succeeded: boolean) {
+  const attempt = await prisma.recoveryAttempt.findFirst({
+    where: { paymentId, status: "EXECUTED" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!attempt) return null;
+
+  const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+  const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);
+  const revenueRecovered = succeeded ? payment.amount : 0;
+  const netRecovered = revenueRecovered - cost;
+
+  const updated = await prisma.recoveryAttempt.update({
+    where: { id: attempt.id },
+    data: {
+      status: succeeded ? "SUCCEEDED" : "FAILED",
+      outcome: succeeded ? "RECOVERED" : "NOT_RECOVERED",
+      revenueRecovered,
+      recoveryCost: cost,
+      netRecovered,
+    },
+  });
+
+  if (succeeded) {
+    await prisma.payment.update({ where: { id: paymentId }, data: { status: "CAPTURED" } });
+  }
+
+  await writeAudit({
+    merchantId: attempt.merchantId,
+    paymentId,
+    attemptId: attempt.id,
+    eventType: "OUTCOME_RECORDED",
+    action: attempt.action,
+    outcome: updated.outcome ?? undefined,
+    revenueRecovered,
+    recoveryCost: cost,
+    netRecovered,
+  });
+
+  return updated;
+}

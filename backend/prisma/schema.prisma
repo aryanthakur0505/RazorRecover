@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum FailureCategory {
+  TEMPORARY_FAILURE
+  INSUFFICIENT_FUNDS
+  CHECKOUT_ABANDONED
+  EXPIRED_PAYMENT
+  SUSPICIOUS_PAYMENT
+  OTHER
+  NONE // not a failure (e.g. captured payment)
+}
+
+enum RecoveryAction {
+  RETRY
+  PAYMENT_LINK
+  STOP
+  ESCALATE
+}
+
+enum RecoveryStatus {
+  PENDING // decided, not yet due/executed
+  AWAITING_APPROVAL // held for human-in-the-loop
+  APPROVED
+  REJECTED
+  EXECUTING
+  EXECUTED // action sent to Razorpay / recorded, outcome pending
+  SUCCEEDED // payment recovered
+  FAILED // action executed but recovery did not succeed
+  STOPPED // deliberately halted (guardrail / max retries / suspicious)
+}
+
+enum ApprovalStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Merchant {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  customers Customer[]
+  payments  Payment[]
+  attempts  RecoveryAttempt[]
+  policy    RecoveryPolicy?
+  auditLogs AuditLog[]
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  merchantId  String
+  externalRef String? // e.g. merchant's own customer id
+  name        String
+  email       String
+  createdAt   DateTime @default(now())
+
+  merchant Merchant  @relation(fields: [merchantId], references: [id])
+  payments Payment[]
+
+  @@index([merchantId])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  merchantId        String
+  customerId        String
+  razorpayPaymentId String?
+  razorpayOrderId   String?
+  amount            Int // in paise
+  currency          String          @default("INR")
+  status            PaymentStatus   @default(CREATED)
+  failureReasonRaw  String?
+  failureCategory   FailureCategory @default(NONE)
+  isSuspicious      Boolean         @default(false)
+  recoveryScore     Int?
+  scoreFactors      Json?
+  failedAt          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  merchant Merchant          @relation(fields: [merchantId], references: [id])
+  customer Customer          @relation(fields: [customerId], references: [id])
+  attempts RecoveryAttempt[]
+  auditLogs AuditLog[]
+
+  @@index([merchantId, status])
+  @@index([customerId])
+  @@index([merchantId, failureCategory])
+}
+
+model RecoveryAttempt {
+  id              String          @id @default(cuid())
+  paymentId       String
+  merchantId      String
+  attemptNumber   Int
+  action          RecoveryAction
+  status          RecoveryStatus  @default(PENDING)
+  idempotencyKey  String          @unique
+
+  usedAI          Boolean         @default(false)
+  aiOutput        Json?
+  decisionFactors Json?
+  riskFlags       Json?
+  policyChecks    Json?
+
+  requiresApproval Boolean        @default(false)
+  approvalStatus   ApprovalStatus @default(NOT_REQUIRED)
+  approvalNote     String?
+
+  scheduledFor    DateTime?
+  executedAt      DateTime?
+  razorpayResponse Json?
+
+  revenueRecovered Int? // paise
+  recoveryCost     Int? // paise
+  netRecovered     Int? // paise
+  outcome          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payment  Payment  @relation(fields: [paymentId], references: [id])
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  auditLogs AuditLog[]
+
+  @@index([paymentId])
+  @@index([merchantId, status])
+  @@index([scheduledFor])
+}
+
+model RecoveryPolicy {
+  id                        String   @id @default(cuid())
+  merchantId                String   @unique
+  maxRetries                Int      @default(3)
+  maxAutoRecoveryAmount     Int      @default(500000) // paise (₹5,000)
+  maxCommunicationsPerPeriod Int     @default(2)
+  communicationPeriodHours  Int      @default(72)
+  quietHoursStart           Int      @default(22) // 10pm
+  quietHoursEnd             Int      @default(8) // 8am
+  minRetryIntervalMinutes   Int      @default(60)
+  retryDelayMinutes         Json     @default("[0, 360, 1440]")
+  updatedAt                 DateTime @updatedAt
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  merchantId String
+  paymentId  String?
+  customerId String?
+  attemptId  String?
+
+  eventType  String // e.g. WEBHOOK_RECEIVED, SCORE_CALCULATED, AI_RECOMMENDATION, POLICY_CHECK, ACTION_EXECUTED, OUTCOME_RECORDED, APPROVAL_DECISION
+  timestamp  DateTime @default(now())
+
+  amount          Int?
+  failureReason   String?
+  recoveryScore   Int?
+  decisionFactors Json?
+  aiRecommendation Json?
+  policyChecks    Json?
+  idempotencyKey  String?
+  approvalStatus  String?
+  action          String?
+  apiResult       Json?
+  outcome         String?
+
+  revenueRecovered Int?
+  recoveryCost     Int?
+  netRecovered     Int?
+
+  merchant Merchant         @relation(fields: [merchantId], references: [id])
+  payment  Payment?         @relation(fields: [paymentId], references: [id])
+  attempt  RecoveryAttempt? @relation(fields: [attemptId], references: [id])
+
+  @@index([merchantId, timestamp])
+  @@index([paymentId])
+  @@index([attemptId])
+}
+
+model WebhookEvent {
+  id             String   @id @default(cuid())
+  razorpayEventId String  @unique
+  eventType      String
+  payload        Json
+  processedAt    DateTime @default(now())
+}
