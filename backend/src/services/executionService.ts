@@ -4,7 +4,7 @@ import { writeAudit } from "./auditService";
 import { createPaymentLink, createRetryOrder } from "./razorpay";
 import { evaluatePolicy } from "./policyEngine";
 import { countRecentCommunications } from "./customerStats";
-import { RECOVERY_COST, AI_COST_PER_CALL_PAISE } from "../types";
+import { RECOVERY_COST, AI_COST_PER_CALL_PAISE, ESCALATION_MANUAL_RESOLUTION_RATE } from "../types";
 import { RecoveryAction, RecoveryAttempt } from "@prisma/client";
 
 export function buildIdempotencyKey(paymentId: string, attemptNumber: number, action: RecoveryAction) {
@@ -13,10 +13,18 @@ export function buildIdempotencyKey(paymentId: string, attemptNumber: number, ac
 
 export interface ExecuteOptions {
   /** Simulation mode never calls the real Razorpay API — used by the seeded dataset generator so
-   *  1000-payment simulations don't hammer Test Mode or require anyone to actually pay. */
+   *  1000-payment simulations don't hammer Test Mode or require anyone to actually pay. Also set
+   *  by the approve/reject/execute routes when acting on a `RecoveryAttempt.isSimulated` row,
+   *  since there's no real customer behind it for a webhook to ever resolve it otherwise. */
   simulate?: boolean;
-  /** Deterministic RNG for simulation outcome resolution (seeded PRNG from simulationService). */
+  /** Deterministic RNG for simulation outcome resolution (seeded PRNG from simulationService).
+   *  Omitted when a human approves a simulated attempt later — that resolution isn't part of
+   *  the original seeded batch, so it just uses Math.random. */
   rng?: () => number;
+  /** The "current time" to evaluate policy windows (quiet hours, retry spacing, comms limits)
+   *  against. Defaults to real time; the simulation engine passes the backdated simulated
+   *  moment instead, since its dataset spans up to 14 days built in a few real seconds. */
+  asOf?: Date;
 }
 
 /**
@@ -38,19 +46,21 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
 
   const policy = await prisma.recoveryPolicy.findUniqueOrThrow({ where: { merchantId: attempt.merchantId } });
   const payment = attempt.payment;
+  const asOf = opts.asOf ?? new Date();
 
   const lastAttempt = await prisma.recoveryAttempt.findFirst({
     where: { paymentId: payment.id, id: { not: attempt.id }, status: { in: ["EXECUTED", "SUCCEEDED", "FAILED"] } },
     orderBy: { createdAt: "desc" },
   });
   const minutesSinceLastAttempt = lastAttempt
-    ? Math.floor((Date.now() - lastAttempt.createdAt.getTime()) / 60000)
+    ? Math.floor((asOf.getTime() - lastAttempt.createdAt.getTime()) / 60000)
     : null;
 
   const commsInPeriod = await countRecentCommunications(
     payment.customerId,
     attempt.merchantId,
     policy.communicationPeriodHours,
+    asOf,
   );
 
   const evaluation = evaluatePolicy({
@@ -62,7 +72,7 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
     isSuspicious: payment.isSuspicious,
     communicationsInPeriod: commsInPeriod,
     minutesSinceLastAttempt,
-    currentHourLocal: new Date().getHours(),
+    currentHourLocal: asOf.getHours(),
     policy,
   });
 
@@ -151,15 +161,18 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
     policyChecks: evaluation.checks,
   });
 
-  // STOP/ESCALATE have no external outcome to wait for.
+  // STOP has no external outcome to wait for.
   if (attempt.action === "STOP") {
     return prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { status: "STOPPED", outcome: "STOPPED_BY_POLICY" } });
   }
-  if (attempt.action === "ESCALATE") {
-    return executed; // stays EXECUTED/AWAITING_APPROVAL until a human decides
+  if (attempt.action === "ESCALATE" && !opts.simulate) {
+    return executed; // live traffic: stays EXECUTED until a human resolves it out-of-band
   }
 
-  // Simulation resolves the outcome immediately (deterministic seeded probability).
+  // Simulation resolves the outcome immediately (deterministic seeded probability) — including
+  // an approved ESCALATE, since there's no real customer behind a simulated payment for a human's
+  // manual follow-up to ever produce a webhook. Without this, every simulated escalation a human
+  // approves would sit at EXECUTED forever.
   if (opts.simulate) {
     return resolveSimulatedOutcome(executed, opts.rng ?? Math.random);
   }
@@ -207,8 +220,14 @@ async function performAction(
 
 async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => number) {
   const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
-  // Recovery score IS the probability estimate — that's the entire point of computing it.
-  const probability = (payment.recoveryScore ?? 30) / 100;
+  // Recovery score IS the probability estimate for automated RETRY/PAYMENT_LINK — that's the
+  // entire point of computing it. ESCALATE is different: its score is deliberately forced to 0
+  // (never auto-recover a suspicious payment), so it can't double as a probability here — that
+  // would mean every approved escalation fails by construction. Its outcome instead models a
+  // human manually following up after approval; ESCALATION_MANUAL_RESOLUTION_RATE is a flat,
+  // documented assumption for that manual-resolution success rate, not derived from the score.
+  const probability =
+    attempt.action === "ESCALATE" ? ESCALATION_MANUAL_RESOLUTION_RATE : (payment.recoveryScore ?? 30) / 100;
   const succeeded = rng() < probability;
 
   const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);

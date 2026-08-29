@@ -75,6 +75,7 @@ export async function runSimulation(
         name,
         email: `sim.${seed}.${i}@example-customer.test`,
         externalRef: `sim-${seed}-${i}`,
+        isSimulated: true,
       },
     });
     customers.push(customer);
@@ -109,6 +110,7 @@ export async function runSimulation(
           currency: "INR",
           status: "CAPTURED",
           failureCategory: "NONE",
+          isSimulated: true,
           createdAt: spec.createdAt,
         },
       });
@@ -132,6 +134,7 @@ export async function runSimulation(
         failureCategory: classification.category,
         failureReasonRaw: failure.reason,
         isSuspicious: classification.isSuspicious,
+        isSimulated: true,
         failedAt: spec.createdAt,
         createdAt: spec.createdAt,
       },
@@ -140,9 +143,16 @@ export async function runSimulation(
     failedPayments++;
     recoveryCandidates++;
 
+    // Model a realistic detection-to-first-attempt lag (an automated system reacts within hours,
+    // not real wall-clock "now" minus a backdated timestamp up to 14 days old) — that mismatch
+    // used to force ~half the dataset through the scoring engine's "stale failure" penalty just
+    // because of how far back it happened to be backdated for history-spread purposes, which
+    // pushed far too many attempts into STOP regardless of how recoverable they actually were.
+    const asOf = new Date(spec.createdAt.getTime() + rng() * 6 * 3600 * 1000);
+
     // Same engine as live traffic — classify → score → decide → guardrail → execute — with the
     // Razorpay call swapped for a synthetic response and the outcome resolved via the seeded RNG.
-    await processFailedPayment(payment.id, { simulate: true, rng });
+    await processFailedPayment(payment.id, { simulate: true, rng, asOf });
   }
 
   onProgress?.(size, size);

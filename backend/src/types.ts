@@ -17,6 +17,12 @@ export const AI_COST_PER_CALL_PAISE = 50;
 // Recovery score band that triggers AI reasoning instead of the pure deterministic path.
 export const AI_ESCALATION_SCORE_BAND = { min: 35, max: 65 } as const;
 
+// Flat assumed success rate for a human's manual follow-up after approving an ESCALATE — used
+// only by the simulation engine (there's no automated recovery score to lean on here; that score
+// is deliberately forced to 0 for suspicious payments). A documented modeling assumption, not a
+// measured figure: most human-reviewed escalations turn out to be resolvable, but not all.
+export const ESCALATION_MANUAL_RESOLUTION_RATE = 0.4;
+
 export interface ScoreFactor {
   factor: string;
   impact: number; // signed contribution to the 0-100 score

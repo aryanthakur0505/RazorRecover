@@ -74,7 +74,10 @@ recoveryRouter.post(
       action: attempt.action,
     });
 
-    const result = await executeAttempt(attempt.id);
+    // A simulated attempt has no real customer behind it, so a real Razorpay call would either
+    // fail (test credentials aside) or succeed against an order/link nobody will ever pay — either
+    // way it could never reach a terminal outcome on its own. Keep resolving it synthetically.
+    const result = await executeAttempt(attempt.id, attempt.isSimulated ? { simulate: true } : {});
     res.json({ attempt: result });
   }),
 );
@@ -125,7 +128,7 @@ recoveryRouter.post(
       res.status(404).json({ error: "Recovery attempt not found" });
       return;
     }
-    const result = await executeAttempt(attempt.id);
+    const result = await executeAttempt(attempt.id, attempt.isSimulated ? { simulate: true } : {});
     res.json({ attempt: result });
   }),
 );

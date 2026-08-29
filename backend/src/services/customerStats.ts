@@ -10,6 +10,7 @@ export async function getCustomerRecoveryStats(
   customerId: string,
   merchantId: string,
   communicationPeriodHours: number,
+  asOf: Date = new Date(),
 ): Promise<CustomerRecoveryStats> {
   const [successCount, failedCount, attempts, lastPayment] = await Promise.all([
     prisma.payment.count({ where: { customerId, merchantId, status: "CAPTURED" } }),
@@ -32,11 +33,11 @@ export async function getCustomerRecoveryStats(
   const commsWindowMs = communicationPeriodHours * 60 * 60 * 1000;
   const recentlyContacted = attempts.some(
     (a) =>
-      a.action === "PAYMENT_LINK" && Date.now() - a.createdAt.getTime() <= commsWindowMs,
+      a.action === "PAYMENT_LINK" && asOf.getTime() - a.createdAt.getTime() <= commsWindowMs,
   );
 
   const hoursSinceLastPayment = lastPayment
-    ? (Date.now() - lastPayment.createdAt.getTime()) / (1000 * 60 * 60)
+    ? (asOf.getTime() - lastPayment.createdAt.getTime()) / (1000 * 60 * 60)
     : null;
 
   return {
@@ -54,8 +55,9 @@ export async function countRecentCommunications(
   customerId: string,
   merchantId: string,
   periodHours: number,
+  asOf: Date = new Date(),
 ): Promise<number> {
-  const since = new Date(Date.now() - periodHours * 60 * 60 * 1000);
+  const since = new Date(asOf.getTime() - periodHours * 60 * 60 * 1000);
   return prisma.recoveryAttempt.count({
     where: {
       merchantId,

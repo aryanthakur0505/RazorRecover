@@ -17,9 +17,10 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   const policy = await prisma.recoveryPolicy.findUniqueOrThrow({ where: { merchantId: payment.merchantId } });
 
   const attemptNumber = (await prisma.recoveryAttempt.count({ where: { paymentId } })) + 1;
+  const asOf = opts.asOf ?? new Date();
 
-  const stats = await getCustomerRecoveryStats(payment.customerId, payment.merchantId, policy.communicationPeriodHours);
-  const hoursSinceFailure = payment.failedAt ? (Date.now() - payment.failedAt.getTime()) / 3600000 : 0;
+  const stats = await getCustomerRecoveryStats(payment.customerId, payment.merchantId, policy.communicationPeriodHours, asOf);
+  const hoursSinceFailure = payment.failedAt ? (asOf.getTime() - payment.failedAt.getTime()) / 3600000 : 0;
 
   const scoreResult = calculateRecoveryScore({
     category: payment.failureCategory,
@@ -112,7 +113,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   if (existing) return existing; // duplicate processing guard
 
   const delayMinutes = decision.action === "RETRY" ? getRetryDelayMinutes(policy, attemptNumber) : 0;
-  const scheduledFor = new Date(Date.now() + delayMinutes * 60000);
+  const scheduledFor = new Date(asOf.getTime() + delayMinutes * 60000);
 
   const attempt = await prisma.recoveryAttempt.create({
     data: {
@@ -129,6 +130,10 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
       requiresApproval: decision.requiresApproval,
       approvalStatus: decision.requiresApproval ? "PENDING" : "NOT_REQUIRED",
       scheduledFor,
+      isSimulated: !!opts.simulate,
+      // Backdated to the simulated moment (not real "now") so charts/recent-activity spread
+      // realistically across the simulated history instead of clustering on the run's real date.
+      createdAt: asOf,
     },
   });
 
@@ -145,7 +150,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
     approvalStatus: attempt.approvalStatus,
   });
 
-  if (attempt.status === "PENDING" && scheduledFor.getTime() <= Date.now()) {
+  if (attempt.status === "PENDING" && scheduledFor.getTime() <= asOf.getTime()) {
     return executeAttempt(attempt.id, opts);
   }
 
