@@ -13,6 +13,11 @@ const envSchema = z.object({
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1, "RAZORPAY_WEBHOOK_SECRET is required"),
   OPENAI_API_KEY: z.string().optional().default(""),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
+  // Lets the AI layer point at any OpenAI-compatible chat-completions endpoint instead of
+  // OpenAI's own — e.g. Groq (https://api.groq.com/openai/v1) or Gemini's compatibility layer
+  // (https://generativelanguage.googleapis.com/v1beta/openai/), both of which have a real free
+  // tier. Leave unset to use OpenAI itself.
+  OPENAI_BASE_URL: z.string().optional(),
   SESSION_SECRET: z.string().min(8, "SESSION_SECRET must be at least 8 characters"),
 });
 

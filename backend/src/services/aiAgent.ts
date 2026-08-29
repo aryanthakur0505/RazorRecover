@@ -4,7 +4,9 @@ import { env } from "../env";
 import { toolImplementations, ToolName } from "./aiTools";
 import { aiRecommendationJsonSchema, aiRecommendationSchema, AIRecommendation } from "../schemas/ai";
 
-const client = env.aiEnabled ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
+const client = env.aiEnabled
+  ? new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: env.OPENAI_BASE_URL })
+  : null;
 
 const TOOL_DEFS: ChatCompletionTool[] = [
   {

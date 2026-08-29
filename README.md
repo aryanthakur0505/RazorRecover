@@ -176,6 +176,20 @@ silently guessed at. The agent only ever receives operational fields (see "Data 
 below) via a fixed set of read-only tools, and its only write action is a structured
 recommendation that the policy engine independently re-evaluates.
 
+**Prefer a free alternative to OpenAI?** Set `OPENAI_BASE_URL` alongside a matching `OPENAI_MODEL`
+to point the same OpenAI-compatible client at a different provider — no code changes needed, since
+both speak the identical chat-completions + tool-calling API this app already uses:
+
+| Provider | `OPENAI_BASE_URL` | `OPENAI_MODEL` |
+|---|---|---|
+| [Groq](https://console.groq.com) (free, no card) | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| [Gemini](https://aistudio.google.com) (free tier) | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` |
+
+Note that even a real OpenAI key needs **billing credits** added at
+platform.openai.com/settings/organization/billing before calls succeed — a fresh API key with $0
+credits authenticates fine but every call fails with a 429 `insufficient_quota` error, which the
+agent treats the same as "unavailable" (falls back to human review).
+
 ## Data minimization
 
 The AI never sees card numbers, CVV, bank credentials, passwords, or Razorpay secrets — Razorpay
