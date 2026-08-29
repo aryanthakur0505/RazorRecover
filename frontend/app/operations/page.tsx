@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OpportunityTable } from "@/components/operations/OpportunityTable";
 import { DecisionDrawer } from "@/components/operations/DecisionDrawer";
+import { ListFilterBar } from "@/components/shared/ListFilterBar";
+import { LoadMoreFooter } from "@/components/shared/LoadMoreFooter";
 import { ErrorState, TableSkeleton } from "@/components/shared/States";
 import { useOpportunities } from "@/hooks/useOpportunities";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { resolveDateRange, DateRangePreset } from "@/lib/dateGroups";
 
 const FILTERS = [
   { value: "", label: "All" },
@@ -19,9 +23,19 @@ const FILTERS = [
 ];
 
 export default function OperationsPage() {
-  const [filter, setFilter] = useState("");
+  const [status, setStatus] = useState("");
+  const [q, setQ] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangePreset>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data, error, isLoading, mutate } = useOpportunities(filter || undefined);
+  const debouncedQ = useDebouncedValue(q, 300);
+
+  const { from, to } = useMemo(() => resolveDateRange(dateRange), [dateRange]);
+  const { attempts, total, hasMore, loadMore, isLoading, isLoadingMore, error, mutate } = useOpportunities({
+    status: status || undefined,
+    q: debouncedQ || undefined,
+    from,
+    to,
+  });
 
   return (
     <div className="space-y-6">
@@ -32,24 +46,36 @@ export default function OperationsPage() {
         </p>
       </div>
 
-      <Tabs value={filter} onValueChange={setFilter}>
-        <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-          {FILTERS.map((f) => (
-            <TabsTrigger key={f.value} value={f.value} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              {f.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="space-y-3">
+        <Tabs value={status} onValueChange={setStatus}>
+          <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+            {FILTERS.map((f) => (
+              <TabsTrigger key={f.value} value={f.value} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                {f.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <ListFilterBar
+          q={q}
+          onQChange={setQ}
+          placeholder="Search by customer name, email, or amount…"
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
+      </div>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="space-y-3 pt-6">
           {error ? (
             <ErrorState title="Couldn't load recovery opportunities" description={error.message} onRetry={() => mutate()} />
-          ) : isLoading || !data ? (
+          ) : isLoading ? (
             <TableSkeleton rows={6} />
           ) : (
-            <OpportunityTable attempts={data.attempts} onSelect={setSelectedId} />
+            <>
+              <OpportunityTable attempts={attempts} onSelect={setSelectedId} />
+              <LoadMoreFooter shown={attempts.length} total={total} hasMore={hasMore} loading={isLoadingMore} onLoadMore={loadMore} />
+            </>
           )}
         </CardContent>
       </Card>

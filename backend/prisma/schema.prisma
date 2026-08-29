@@ -163,6 +163,7 @@ model RecoveryAttempt {
   @@index([paymentId])
   @@index([merchantId, status])
   @@index([scheduledFor])
+  @@index([merchantId, createdAt])
 }
 
 model RecoveryPolicy {

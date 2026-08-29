@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/States";
 import { formatDate, formatCurrency } from "@/lib/format";
+import { withDayDividers } from "@/lib/dateGroups";
 import { AuditLogEntry } from "@/lib/types";
+
+const COLUMN_COUNT = 4;
 
 const EVENT_LABELS: Record<string, string> = {
   WEBHOOK_RECEIVED: "Webhook Received",
@@ -27,8 +30,15 @@ export function AuditTable({ logs }: { logs: AuditLogEntry[] }) {
   const [selected, setSelected] = useState<AuditLogEntry | null>(null);
 
   if (logs.length === 0) {
-    return <EmptyState title="No audit events yet" description="Every webhook, decision, and action will be recorded here — append-only." />;
+    return (
+      <EmptyState
+        title="No audit events match this view"
+        description="Try a different search or date range — every webhook, decision, and action is recorded here, append-only."
+      />
+    );
   }
+
+  const rows = withDayDividers(logs, (log) => log.timestamp);
 
   return (
     <>
@@ -43,17 +53,26 @@ export function AuditTable({ logs }: { logs: AuditLogEntry[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.map((log) => (
-              <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelected(log)}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(log.timestamp)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{EVENT_LABELS[log.eventType] ?? log.eventType}</Badge>
-                </TableCell>
-                <TableCell className="hidden text-muted-foreground sm:table-cell">{log.outcome ?? "—"}</TableCell>
-                <TableCell className="hidden tabular-nums md:table-cell">
-                  {log.netRecovered !== null ? formatCurrency(log.netRecovered) : "—"}
-                </TableCell>
-              </TableRow>
+            {rows.map(({ item: log, divider }) => (
+              <Fragment key={log.id}>
+                {divider && (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={COLUMN_COUNT} className="bg-muted/40 py-1.5 text-xs font-medium text-muted-foreground">
+                      {divider}
+                    </TableCell>
+                  </TableRow>
+                )}
+                <TableRow className="cursor-pointer" onClick={() => setSelected(log)}>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(log.timestamp)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{EVENT_LABELS[log.eventType] ?? log.eventType}</Badge>
+                  </TableCell>
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">{log.outcome ?? "—"}</TableCell>
+                  <TableCell className="hidden tabular-nums md:table-cell">
+                    {log.netRecovered !== null ? formatCurrency(log.netRecovered) : "—"}
+                  </TableCell>
+                </TableRow>
+              </Fragment>
             ))}
           </TableBody>
         </Table>

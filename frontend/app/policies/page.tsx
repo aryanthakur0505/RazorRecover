@@ -1,15 +1,35 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PolicyForm } from "@/components/policies/PolicyForm";
 import { AuditTable } from "@/components/policies/AuditTable";
+import { ListFilterBar } from "@/components/shared/ListFilterBar";
+import { LoadMoreFooter } from "@/components/shared/LoadMoreFooter";
 import { CardSkeleton, ErrorState, TableSkeleton } from "@/components/shared/States";
 import { usePolicy } from "@/hooks/usePolicies";
 import { useAuditLog } from "@/hooks/useAudit";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { resolveDateRange, DateRangePreset } from "@/lib/dateGroups";
 
 export default function PoliciesPage() {
   const { data: policyData, error: policyError, isLoading: policyLoading, mutate: mutatePolicy } = usePolicy();
-  const { data: auditData, error: auditError, isLoading: auditLoading, mutate: mutateAudit } = useAuditLog();
+
+  const [q, setQ] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangePreset>("all");
+  const debouncedQ = useDebouncedValue(q, 300);
+  const { from, to } = useMemo(() => resolveDateRange(dateRange), [dateRange]);
+
+  const {
+    logs,
+    total,
+    hasMore,
+    loadMore,
+    isLoading: auditLoading,
+    isLoadingMore,
+    error: auditError,
+    mutate: mutateAudit,
+  } = useAuditLog({ q: debouncedQ || undefined, from, to });
 
   return (
     <div className="space-y-6">
@@ -32,13 +52,23 @@ export default function PoliciesPage() {
         <CardHeader>
           <CardTitle>Audit Trail</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <ListFilterBar
+            q={q}
+            onQChange={setQ}
+            placeholder="Search by event, outcome, customer name, or email…"
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
           {auditError ? (
             <ErrorState title="Couldn't load audit log" description={auditError.message} onRetry={() => mutateAudit()} />
-          ) : auditLoading || !auditData ? (
+          ) : auditLoading ? (
             <TableSkeleton rows={8} />
           ) : (
-            <AuditTable logs={auditData.logs} />
+            <>
+              <AuditTable logs={logs} />
+              <LoadMoreFooter shown={logs.length} total={total} hasMore={hasMore} loading={isLoadingMore} onLoadMore={loadMore} />
+            </>
           )}
         </CardContent>
       </Card>

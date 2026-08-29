@@ -5,28 +5,54 @@ import { asyncHandler } from "../middleware/errorHandler";
 import { approvalDecisionSchema, escalationResolutionSchema } from "../schemas/api";
 import { executeAttempt, resolveEscalation } from "../services/executionService";
 import { writeAudit } from "../services/auditService";
+import { parsePagination, parseDateRange, parseAmountSearch } from "../utils/listQuery";
 
 export const recoveryRouter = Router();
 recoveryRouter.use(requireSession);
 
 /** Recovery opportunities queue — RecoveryAttempts joined with their payment/customer, scoped
- *  strictly to the session's merchant. Never trusts a merchantId from the client. */
+ *  strictly to the session's merchant. Never trusts a merchantId from the client. Supports a
+ *  free-text search (customer name/email, payment/attempt id, amount), a date range, and real
+ *  pagination — old records stay reachable no matter how much new traffic has come in since,
+ *  instead of just falling off the end of a fixed-size list. */
 recoveryRouter.get(
   "/opportunities",
   asyncHandler(async (req, res) => {
     const status = req.query.status as string | undefined;
-    const attempts = await prisma.recoveryAttempt.findMany({
-      where: {
-        merchantId: req.merchantId,
-        ...(status ? { status: status as any } : {}),
-      },
-      include: {
-        payment: { include: { customer: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-    res.json({ attempts });
+    const q = (req.query.q as string | undefined)?.trim();
+    const { page, pageSize, skip, take } = parsePagination(req);
+    const dateFilter = parseDateRange(req, "createdAt");
+    const searchAmount = q ? parseAmountSearch(q) : undefined;
+
+    const where = {
+      merchantId: req.merchantId,
+      ...(status ? { status: status as any } : {}),
+      ...dateFilter,
+      ...(q
+        ? {
+            OR: [
+              { id: q },
+              { payment: { id: q } },
+              { payment: { customer: { name: { contains: q, mode: "insensitive" as const } } } },
+              { payment: { customer: { email: { contains: q, mode: "insensitive" as const } } } },
+              ...(searchAmount !== undefined ? [{ payment: { amount: searchAmount } }] : []),
+            ],
+          }
+        : {}),
+    };
+
+    const [attempts, total] = await Promise.all([
+      prisma.recoveryAttempt.findMany({
+        where,
+        include: { payment: { include: { customer: true } } },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      }),
+      prisma.recoveryAttempt.count({ where }),
+    ]);
+
+    res.json({ attempts, total, page, pageSize });
   }),
 );
 
