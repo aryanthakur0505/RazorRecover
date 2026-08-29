@@ -62,14 +62,20 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
     return attempt;
   }
 
-  const policy = await prisma.recoveryPolicy.findUniqueOrThrow({ where: { merchantId: attempt.merchantId } });
   const payment = attempt.payment;
   const asOf = opts.asOf ?? new Date();
 
-  const lastAttempt = await prisma.recoveryAttempt.findFirst({
-    where: { paymentId: payment.id, id: { not: attempt.id }, status: { in: ["EXECUTED", "SUCCEEDED", "FAILED"] } },
-    orderBy: { createdAt: "desc" },
-  });
+  // `policy` and `lastAttempt` don't depend on each other — running them concurrently instead of
+  // one-at-a-time collapses 2 sequential round trips into 1, which matters a lot when each round
+  // trip is a real network hop away rather than a local call. `commsInPeriod` genuinely does need
+  // policy.communicationPeriodHours first, so it can't join that same batch.
+  const [policy, lastAttempt] = await Promise.all([
+    prisma.recoveryPolicy.findUniqueOrThrow({ where: { merchantId: attempt.merchantId } }),
+    prisma.recoveryAttempt.findFirst({
+      where: { paymentId: payment.id, id: { not: attempt.id }, status: { in: ["EXECUTED", "SUCCEEDED", "FAILED"] } },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
   const minutesSinceLastAttempt = lastAttempt
     ? Math.floor((asOf.getTime() - lastAttempt.createdAt.getTime()) / 60000)
     : null;

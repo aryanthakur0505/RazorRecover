@@ -112,8 +112,16 @@ webhooksRouter.post(
         idempotencyKey: razorpayEventId,
       });
 
-      await processFailedPayment(payment.id);
+      // Acknowledge Razorpay immediately rather than blocking the response on the full recovery
+      // pipeline (classify → score → decide → guardrail → execute is several sequential DB round
+      // trips). Razorpay's webhook delivery has its own timeout and will retry a slow response as
+      // a duplicate delivery — safe either way thanks to the idempotency ledger above, but there's
+      // no reason to risk it, or to make Razorpay (and a burst of concurrent failures) wait on
+      // work that doesn't affect whether this webhook was received and recorded.
       res.status(200).json({ received: true });
+      processFailedPayment(payment.id).catch((err) => {
+        console.error(`[webhook] recovery pipeline failed for payment ${payment.id}:`, err);
+      });
       return;
     }
 
@@ -126,10 +134,12 @@ webhooksRouter.post(
           ].filter(Boolean) as any,
         },
       });
-      if (payment) {
-        await resolveLiveOutcome(payment.id, true);
-      }
       res.status(200).json({ received: true });
+      if (payment) {
+        resolveLiveOutcome(payment.id, true).catch((err) => {
+          console.error(`[webhook] outcome resolution failed for payment ${payment.id}:`, err);
+        });
+      }
       return;
     }
 

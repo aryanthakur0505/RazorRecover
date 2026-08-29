@@ -30,19 +30,22 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
     stats,
   });
 
-  await prisma.payment.update({
-    where: { id: payment.id },
-    data: { recoveryScore: scoreResult.score, scoreFactors: scoreResult.factors as any },
-  });
-
-  await writeAudit({
-    merchantId: payment.merchantId,
-    paymentId: payment.id,
-    customerId: payment.customerId,
-    eventType: "SCORE_CALCULATED",
-    recoveryScore: scoreResult.score,
-    decisionFactors: scoreResult.factors,
-  });
+  // Independent writes (different tables, neither reads the other back) — one round trip instead
+  // of two.
+  await Promise.all([
+    prisma.payment.update({
+      where: { id: payment.id },
+      data: { recoveryScore: scoreResult.score, scoreFactors: scoreResult.factors as any },
+    }),
+    writeAudit({
+      merchantId: payment.merchantId,
+      paymentId: payment.id,
+      customerId: payment.customerId,
+      eventType: "SCORE_CALCULATED",
+      recoveryScore: scoreResult.score,
+      decisionFactors: scoreResult.factors,
+    }),
+  ]);
 
   const decisionInput = {
     category: payment.failureCategory,
