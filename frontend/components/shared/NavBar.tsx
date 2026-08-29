@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { LayoutDashboard, ListChecks, ShieldCheck, Menu, ShieldHalf } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { LayoutDashboard, ListChecks, ShieldCheck, Menu, ShieldHalf, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,23 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label="Toggle theme"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+    >
+      {mounted && resolvedTheme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+    </Button>
+  );
+}
+
 export function NavBar() {
   const { merchantName } = useSession();
   const [open, setOpen] = useState(false);
@@ -60,6 +78,7 @@ export function NavBar() {
 
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-muted-foreground sm:inline">{merchantName}</span>
+          <ThemeToggle />
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">

@@ -16,7 +16,7 @@ async function scanDueAttempts() {
       take: 50,
     });
     for (const attempt of due) {
-      await executeAttempt(attempt.id).catch((err) => {
+      await executeAttempt(attempt.id, attempt.isSimulated ? { simulate: true } : {}).catch((err) => {
         console.error(`[scheduler] failed executing attempt ${attempt.id}:`, err);
       });
     }

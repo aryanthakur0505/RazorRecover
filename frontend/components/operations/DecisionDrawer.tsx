@@ -10,8 +10,10 @@ import { RiskFlagBadges } from "@/components/operations/RiskFlagBadges";
 import { useOpportunity } from "@/hooks/useOpportunities";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate, actionLabel, categoryLabel } from "@/lib/format";
-import { CheckCircle2, XCircle, PlayCircle, Sparkles, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, PlayCircle, Sparkles, Loader2, UserCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 export function DecisionDrawer({
   attemptId,
@@ -24,6 +26,7 @@ export function DecisionDrawer({
 }) {
   const { data, mutate, isLoading } = useOpportunity(attemptId);
   const [busy, setBusy] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState("");
   const attempt = data?.attempt;
 
   async function act(action: "approve" | "reject" | "execute") {
@@ -38,6 +41,22 @@ export function DecisionDrawer({
       onMutated();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Action failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resolve(outcome: "RECOVERED" | "NOT_RECOVERED") {
+    if (!attemptId) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/recovery/${attemptId}/resolve`, { outcome, note: resolutionNote || undefined });
+      toast.success(outcome === "RECOVERED" ? "Marked as recovered." : "Marked as not recovered.");
+      setResolutionNote("");
+      await mutate();
+      onMutated();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not record the outcome.");
     } finally {
       setBusy(false);
     }
@@ -140,6 +159,29 @@ export function DecisionDrawer({
                 </>
               )}
 
+              {attempt.status === "EXECUTED" && attempt.action === "ESCALATE" && !attempt.isSimulated && (
+                <>
+                  <Separator />
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-semibold">Manual Follow-Up</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Escalations have no Razorpay call and no webhook to resolve them — record what happened after
+                      you followed up with the customer.
+                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="resolution-note">Note (optional)</Label>
+                      <Textarea
+                        id="resolution-note"
+                        value={resolutionNote}
+                        onChange={(e) => setResolutionNote(e.target.value)}
+                        placeholder="e.g. Called the customer, confirmed it was a false positive, they paid via a new card."
+                        rows={3}
+                      />
+                    </div>
+                  </section>
+                </>
+              )}
+
               {(attempt.revenueRecovered !== null || attempt.recoveryCost !== null) && (
                 <>
                   <Separator />
@@ -181,6 +223,17 @@ export function DecisionDrawer({
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <PlayCircle className="size-4" />}
                 Execute Now
               </Button>
+            ) : attempt.status === "EXECUTED" && attempt.action === "ESCALATE" && !attempt.isSimulated ? (
+              <>
+                <Button variant="outline" className="flex-1" disabled={busy} onClick={() => resolve("NOT_RECOVERED")}>
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+                  Mark Not Recovered
+                </Button>
+                <Button className="flex-1" disabled={busy} onClick={() => resolve("RECOVERED")}>
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <UserCheck className="size-4" />}
+                  Mark Recovered
+                </Button>
+              </>
             ) : (
               <p className="w-full text-center text-sm text-muted-foreground">
                 This attempt is {attempt.status.toLowerCase().replace(/_/g, " ")} — no further action available.

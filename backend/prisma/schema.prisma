@@ -148,6 +148,11 @@ model RecoveryAttempt {
   // synthetic outcome path, since there's no real customer behind it for a webhook to ever arrive.
   isSimulated Boolean  @default(false)
 
+  // Count of transient Razorpay-call failures (network blip, 5xx, rate limit) retried so far —
+  // distinct from `attemptNumber`, which counts business-level dunning retries on the payment.
+  // Exhausting this cap is what finally marks the attempt FAILED/API_ERROR.
+  executionRetries Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -81,6 +81,7 @@ export interface RecoveryAttempt {
   requiresApproval: boolean;
   approvalStatus: ApprovalStatus;
   approvalNote: string | null;
+  isSimulated: boolean;
   scheduledFor: string | null;
   executedAt: string | null;
   revenueRecovered: number | null;

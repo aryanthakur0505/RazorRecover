@@ -24,3 +24,8 @@ export const simulationRequestSchema = z.object({
 export const executeAttemptSchema = z.object({
   attemptId: z.string().min(1),
 });
+
+export const escalationResolutionSchema = z.object({
+  outcome: z.enum(["RECOVERED", "NOT_RECOVERED"]),
+  note: z.string().max(500).optional(),
+});

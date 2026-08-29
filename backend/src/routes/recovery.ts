@@ -2,8 +2,8 @@ import { Router } from "express";
 import { prisma } from "../db";
 import { requireSession } from "../middleware/session";
 import { asyncHandler } from "../middleware/errorHandler";
-import { approvalDecisionSchema } from "../schemas/api";
-import { executeAttempt } from "../services/executionService";
+import { approvalDecisionSchema, escalationResolutionSchema } from "../schemas/api";
+import { executeAttempt, resolveEscalation } from "../services/executionService";
 import { writeAudit } from "../services/auditService";
 
 export const recoveryRouter = Router();
@@ -113,6 +113,34 @@ recoveryRouter.post(
     });
 
     res.json({ attempt: updated });
+  }),
+);
+
+/** Records what happened after a merchant manually followed up on an escalated (suspicious /
+ *  human-reviewed) payment — the one action with no Razorpay call and therefore no webhook that
+ *  could ever resolve it on its own. Only valid on a live (non-simulated), EXECUTED escalation;
+ *  simulated ones already resolve automatically. */
+recoveryRouter.post(
+  "/:id/resolve",
+  asyncHandler(async (req, res) => {
+    const body = escalationResolutionSchema.parse(req.body);
+    const attempt = await prisma.recoveryAttempt.findFirst({
+      where: { id: req.params.id, merchantId: req.merchantId },
+    });
+    if (!attempt) {
+      res.status(404).json({ error: "Recovery attempt not found" });
+      return;
+    }
+    if (attempt.isSimulated) {
+      res.status(409).json({ error: "Simulated attempts resolve automatically and can't be manually resolved." });
+      return;
+    }
+    try {
+      const result = await resolveEscalation(attempt.id, body.outcome === "RECOVERED", body.note);
+      res.json({ attempt: result });
+    } catch (err) {
+      res.status(409).json({ error: err instanceof Error ? err.message : "Could not resolve this attempt." });
+    }
   }),
 );
 

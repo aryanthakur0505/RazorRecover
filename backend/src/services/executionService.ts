@@ -11,6 +11,24 @@ export function buildIdempotencyKey(paymentId: string, attemptNumber: number, ac
   return crypto.createHash("sha256").update(`${paymentId}:${attemptNumber}:${action}`).digest("hex");
 }
 
+const MAX_EXECUTION_RETRIES = 3;
+const EXECUTION_RETRY_BACKOFF_MINUTES = [5, 15, 45];
+
+/**
+ * Distinguishes "Razorpay/the network hiccupped, try again shortly" from "this call is wrong and
+ * always will be" — a rate limit or a 500 says nothing about whether the action itself was valid,
+ * so it shouldn't burn the attempt the same way a real 4xx (bad request, auth failure) does.
+ */
+function isRetryableError(err: unknown): boolean {
+  const e = err as { statusCode?: number; code?: string } | null;
+  if (!e) return false;
+  if (typeof e.statusCode === "number") return e.statusCode === 429 || e.statusCode >= 500;
+  if (typeof e.code === "string") {
+    return ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED", "EAI_AGAIN"].includes(e.code);
+  }
+  return false;
+}
+
 export interface ExecuteOptions {
   /** Simulation mode never calls the real Razorpay API — used by the seeded dataset generator so
    *  1000-payment simulations don't hammer Test Mode or require anyone to actually pay. Also set
@@ -123,6 +141,30 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
   try {
     razorpayResponse = await performAction(attempt, opts);
   } catch (err) {
+    if (isRetryableError(err) && attempt.executionRetries < MAX_EXECUTION_RETRIES) {
+      const backoffMinutes = EXECUTION_RETRY_BACKOFF_MINUTES[attempt.executionRetries] ?? 45;
+      const retryAt = new Date(asOf.getTime() + backoffMinutes * 60000);
+      const retried = await prisma.recoveryAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "PENDING",
+          executionRetries: attempt.executionRetries + 1,
+          scheduledFor: retryAt,
+        },
+      });
+      await writeAudit({
+        merchantId: attempt.merchantId,
+        paymentId: payment.id,
+        customerId: payment.customerId,
+        attemptId: attempt.id,
+        eventType: "ACTION_EXECUTION_RETRY_SCHEDULED",
+        action: attempt.action,
+        outcome: `TRANSIENT_ERROR_RETRY_${attempt.executionRetries + 1}_OF_${MAX_EXECUTION_RETRIES}`,
+        apiResult: { error: String(err) },
+      });
+      return retried; // scheduler picks this back up at retryAt — never counted as a final failure
+    }
+
     const failed = await prisma.recoveryAttempt.update({
       where: { id: attempt.id },
       data: { status: "FAILED", outcome: "API_ERROR", razorpayResponse: { error: String(err) } },
@@ -218,18 +260,17 @@ async function performAction(
   return null;
 }
 
-async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => number) {
-  const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
-  // Recovery score IS the probability estimate for automated RETRY/PAYMENT_LINK — that's the
-  // entire point of computing it. ESCALATE is different: its score is deliberately forced to 0
-  // (never auto-recover a suspicious payment), so it can't double as a probability here — that
-  // would mean every approved escalation fails by construction. Its outcome instead models a
-  // human manually following up after approval; ESCALATION_MANUAL_RESOLUTION_RATE is a flat,
-  // documented assumption for that manual-resolution success rate, not derived from the score.
-  const probability =
-    attempt.action === "ESCALATE" ? ESCALATION_MANUAL_RESOLUTION_RATE : (payment.recoveryScore ?? 30) / 100;
-  const succeeded = rng() < probability;
-
+/**
+ * Single source of truth for "what does a resolved outcome cost/pay out, and what does it write
+ * down" — shared by simulated, live-webhook, and manually-resolved (escalation) outcomes so the
+ * revenue math can't drift between the three paths.
+ */
+async function finalizeOutcome(
+  attempt: RecoveryAttempt,
+  payment: { id: string; amount: number; customerId: string },
+  succeeded: boolean,
+  extraAudit?: Record<string, unknown>,
+) {
   const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);
   const revenueRecovered = succeeded ? payment.amount : 0;
   const netRecovered = revenueRecovered - cost;
@@ -260,9 +301,24 @@ async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => numb
     revenueRecovered,
     recoveryCost: cost,
     netRecovered,
+    ...extraAudit,
   });
 
   return updated;
+}
+
+async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => number) {
+  const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
+  // Recovery score IS the probability estimate for automated RETRY/PAYMENT_LINK — that's the
+  // entire point of computing it. ESCALATE is different: its score is deliberately forced to 0
+  // (never auto-recover a suspicious payment), so it can't double as a probability here — that
+  // would mean every approved escalation fails by construction. Its outcome instead models a
+  // human manually following up after approval; ESCALATION_MANUAL_RESOLUTION_RATE is a flat,
+  // documented assumption for that manual-resolution success rate, not derived from the score.
+  const probability =
+    attempt.action === "ESCALATE" ? ESCALATION_MANUAL_RESOLUTION_RATE : (payment.recoveryScore ?? 30) / 100;
+  const succeeded = rng() < probability;
+  return finalizeOutcome(attempt, payment, succeeded);
 }
 
 /**
@@ -278,36 +334,25 @@ export async function resolveLiveOutcome(paymentId: string, succeeded: boolean) 
   if (!attempt) return null;
 
   const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
-  const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);
-  const revenueRecovered = succeeded ? payment.amount : 0;
-  const netRecovered = revenueRecovered - cost;
+  return finalizeOutcome(attempt, payment, succeeded);
+}
 
-  const updated = await prisma.recoveryAttempt.update({
-    where: { id: attempt.id },
-    data: {
-      status: succeeded ? "SUCCEEDED" : "FAILED",
-      outcome: succeeded ? "RECOVERED" : "NOT_RECOVERED",
-      revenueRecovered,
-      recoveryCost: cost,
-      netRecovered,
-    },
-  });
+/**
+ * Manual resolution for a live (non-simulated) ESCALATE attempt — the only action with no
+ * Razorpay call and therefore no webhook that could ever tell us what happened. A merchant
+ * follows up with the customer out-of-band and records the result here. Only valid on an
+ * EXECUTED escalation; already-resolved attempts are rejected rather than silently overwritten.
+ */
+export async function resolveEscalation(attemptId: string, succeeded: boolean, note?: string) {
+  const attempt = await prisma.recoveryAttempt.findUniqueOrThrow({ where: { id: attemptId } });
 
-  if (succeeded) {
-    await prisma.payment.update({ where: { id: paymentId }, data: { status: "CAPTURED" } });
+  if (attempt.action !== "ESCALATE") {
+    throw new Error("Only ESCALATE attempts can be manually resolved.");
+  }
+  if (attempt.status !== "EXECUTED") {
+    throw new Error(`Attempt is ${attempt.status}, not awaiting manual resolution.`);
   }
 
-  await writeAudit({
-    merchantId: attempt.merchantId,
-    paymentId,
-    attemptId: attempt.id,
-    eventType: "OUTCOME_RECORDED",
-    action: attempt.action,
-    outcome: updated.outcome ?? undefined,
-    revenueRecovered,
-    recoveryCost: cost,
-    netRecovered,
-  });
-
-  return updated;
+  const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
+  return finalizeOutcome(attempt, payment, succeeded, note ? { apiResult: { manualResolutionNote: note } } : undefined);
 }
