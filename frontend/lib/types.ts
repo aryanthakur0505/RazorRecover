@@ -142,6 +142,12 @@ export interface DashboardMetrics {
   failedRecoveries: number;
   pendingApprovals: number;
   agentStatus: "ONLINE" | "UNAVAILABLE";
+  // Full payment book, not just recovery-related rows — the baseline "how much came through at all".
+  totalPayments: number;
+  successfulPayments: number;
+  totalVolume: number;
+  successfulVolume: number;
+  baselineSuccessRate: number;
 }
 
 export interface ChartsResponse {

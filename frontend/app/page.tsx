@@ -8,10 +8,18 @@ import { BreakdownBarChart } from "@/components/dashboard/BreakdownBarChart";
 import { OutcomeSplit } from "@/components/dashboard/OutcomeSplit";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
 import { SimulationPanel } from "@/components/dashboard/SimulationPanel";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CardSkeleton, ErrorState, TableSkeleton } from "@/components/shared/States";
 import { formatCurrency, formatPercent, categoryLabel, actionLabel } from "@/lib/format";
-import { AlertTriangle, TrendingUp, PiggyBank, Percent, Wallet, LineChart as LineChartIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  TrendingUp,
+  PiggyBank,
+  Percent,
+  Wallet,
+  LineChart as LineChartIcon,
+  Receipt,
+} from "lucide-react";
 
 export default function CommandCenterPage() {
   const { data: metrics, error: metricsError, isLoading: metricsLoading, mutate: mutateMetrics } = useDashboardMetrics();
@@ -42,6 +50,12 @@ export default function CommandCenterPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <MetricCard
+              label="Payments Processed"
+              value={metrics.totalPayments.toLocaleString()}
+              subLabel={`${metrics.successfulPayments.toLocaleString()} succeeded (${formatPercent(metrics.baselineSuccessRate)} baseline)`}
+              icon={Receipt}
+            />
             <MetricCard label="Revenue at Risk" value={formatCurrency(metrics.revenueAtRisk)} icon={AlertTriangle} tone="warning" />
             <MetricCard label="Revenue Recovered" value={formatCurrency(metrics.revenueRecovered)} icon={TrendingUp} tone="good" />
             <MetricCard label="Net Recovered Revenue" value={formatCurrency(metrics.netRecoveredRevenue)} icon={PiggyBank} tone="good" />
@@ -70,7 +84,8 @@ export default function CommandCenterPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Successful vs Failed Attempts</CardTitle>
+            <CardTitle>Recovery Attempt Outcomes</CardTitle>
+            <CardDescription>Of the payments that needed recovery, how many were won back</CardDescription>
           </CardHeader>
           <CardContent>
             {chartsLoading || !charts ? (

@@ -4,6 +4,7 @@ import { asyncHandler } from "../middleware/errorHandler";
 import { env } from "../env";
 import {
   getDashboardMetrics,
+  getPaymentsOverview,
   getRevenueOverTime,
   getRecoveryByFailureType,
   getRecoveryByAction,
@@ -17,8 +18,11 @@ metricsRouter.use(requireSession);
 metricsRouter.get(
   "/dashboard",
   asyncHandler(async (req, res) => {
-    const metrics = await getDashboardMetrics(req.merchantId!);
-    res.json({ ...metrics, agentStatus: env.aiEnabled ? "ONLINE" : "UNAVAILABLE" });
+    const [metrics, paymentsOverview] = await Promise.all([
+      getDashboardMetrics(req.merchantId!),
+      getPaymentsOverview(req.merchantId!),
+    ]);
+    res.json({ ...metrics, ...paymentsOverview, agentStatus: env.aiEnabled ? "ONLINE" : "UNAVAILABLE" });
   }),
 );
 

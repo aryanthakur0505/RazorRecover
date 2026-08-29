@@ -38,6 +38,31 @@ export async function getDashboardMetrics(merchantId: string) {
   };
 }
 
+/**
+ * Every other query here is recovery-centric (failed payments, attempts) by design — a payment
+ * that succeeded on the first try never creates a RecoveryAttempt, so it's invisible to them.
+ * This one covers the full payment book so the dashboard can show a real baseline: how many
+ * payments came through total, and how many succeeded (either outright, or after recovery).
+ */
+export async function getPaymentsOverview(merchantId: string) {
+  const payments = await prisma.payment.findMany({
+    where: { merchantId },
+    select: { status: true, amount: true },
+  });
+
+  const successful = payments.filter((p) => p.status === "CAPTURED");
+  const totalVolume = payments.reduce((sum, p) => sum + p.amount, 0);
+  const successfulVolume = successful.reduce((sum, p) => sum + p.amount, 0);
+
+  return {
+    totalPayments: payments.length,
+    successfulPayments: successful.length,
+    totalVolume,
+    successfulVolume,
+    baselineSuccessRate: payments.length > 0 ? successful.length / payments.length : 0,
+  };
+}
+
 export async function getRevenueOverTime(merchantId: string, days = 14) {
   const since = new Date(Date.now() - days * 24 * 3600 * 1000);
   const attempts = await prisma.recoveryAttempt.findMany({
