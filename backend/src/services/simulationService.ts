@@ -163,8 +163,11 @@ export async function runSimulation(
 
     // Modeling a realistic detection-to-first-attempt lag, and pre-drawing the eventual outcome
     // roll now (used later, if this attempt reaches execution) — both explained further where
-    // they're consumed, in Phase 3.
-    const asOf = new Date(spec.createdAt.getTime() + rng() * 6 * 3600 * 1000);
+    // they're consumed, in Phase 3. Clamped to `now`: for the freshest payments (age ≈ 0, right at
+    // the edge of the 14-day spread), adding up to 6 hours of lag would otherwise push asOf — and
+    // therefore this attempt's createdAt — into the actual future, which showed up as a "tomorrow"
+    // divider in the UI for data that hadn't happened yet.
+    const asOf = new Date(Math.min(spec.createdAt.getTime() + rng() * 6 * 3600 * 1000, now));
     const outcomeRoll = rng();
 
     failedRecipes.push({
