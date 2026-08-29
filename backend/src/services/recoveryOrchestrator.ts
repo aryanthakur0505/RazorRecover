@@ -63,7 +63,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   const escalate = shouldEscalateToAI(decisionInput);
   if (escalate && !opts.simulate) {
     // Simulation intentionally skips real LLM calls per payment — see simulationService for how
-    // it still exercises the "escalated" code path deterministically without 1000 OpenAI calls.
+    // it still exercises the "escalated" code path deterministically without 1000 Groq calls.
     const ai = await getAIRecommendation(payment.id, payment.merchantId);
     if (ai) {
       usedAI = true;

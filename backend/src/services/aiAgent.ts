@@ -4,9 +4,7 @@ import { env } from "../env";
 import { toolImplementations, ToolName } from "./aiTools";
 import { aiRecommendationJsonSchema, aiRecommendationSchema, AIRecommendation } from "../schemas/ai";
 
-const client = env.aiEnabled
-  ? new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: env.OPENAI_BASE_URL })
-  : null;
+const client = env.aiEnabled ? new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: env.GROQ_BASE_URL }) : null;
 
 const TOOL_DEFS: ChatCompletionTool[] = [
   {
@@ -127,7 +125,7 @@ export async function getAIRecommendation(
   paymentId: string,
   merchantId: string,
 ): Promise<AIAgentResult | null> {
-  if (!client) return null; // agent unavailable — no OPENAI_API_KEY configured
+  if (!client) return null; // agent unavailable — no GROQ_API_KEY configured
 
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -144,13 +142,13 @@ export async function getAIRecommendation(
     let completion;
     try {
       completion = await client.chat.completions.create({
-        model: env.OPENAI_MODEL,
+        model: env.GROQ_MODEL,
         messages,
         tools: TOOL_DEFS,
         tool_choice: step === MAX_STEPS - 1 ? { type: "function", function: { name: aiRecommendationJsonSchema.name } } : "auto",
       });
     } catch (err) {
-      console.error("[aiAgent] OpenAI call failed:", err);
+      console.error("[aiAgent] AI provider call failed:", err);
       return null;
     }
 

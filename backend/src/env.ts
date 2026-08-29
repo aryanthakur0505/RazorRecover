@@ -11,13 +11,14 @@ const envSchema = z.object({
   RAZORPAY_KEY_ID: z.string().min(1, "RAZORPAY_KEY_ID is required"),
   RAZORPAY_KEY_SECRET: z.string().min(1, "RAZORPAY_KEY_SECRET is required"),
   RAZORPAY_WEBHOOK_SECRET: z.string().min(1, "RAZORPAY_WEBHOOK_SECRET is required"),
-  OPENAI_API_KEY: z.string().optional().default(""),
-  OPENAI_MODEL: z.string().default("gpt-4o-mini"),
-  // Lets the AI layer point at any OpenAI-compatible chat-completions endpoint instead of
-  // OpenAI's own — e.g. Groq (https://api.groq.com/openai/v1) or Gemini's compatibility layer
-  // (https://generativelanguage.googleapis.com/v1beta/openai/), both of which have a real free
-  // tier. Leave unset to use OpenAI itself.
-  OPENAI_BASE_URL: z.string().optional(),
+  // Groq (console.groq.com) — free, no card required, and speaks the identical OpenAI-style
+  // chat-completions + tool-calling API this app's AI layer already uses, so the same client
+  // code works unchanged. GROQ_BASE_URL is only there in case you ever want to point at a
+  // different OpenAI-compatible provider instead (e.g. Gemini's compatibility layer) without
+  // touching code.
+  GROQ_API_KEY: z.string().optional().default(""),
+  GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
+  GROQ_BASE_URL: z.string().default("https://api.groq.com/openai/v1"),
   SESSION_SECRET: z.string().min(8, "SESSION_SECRET must be at least 8 characters"),
 });
 
@@ -32,5 +33,5 @@ export const env = {
   ...parsed.data,
   PORT: Number(parsed.data.PORT),
   isProduction: parsed.data.NODE_ENV === "production",
-  aiEnabled: parsed.data.OPENAI_API_KEY.length > 0,
+  aiEnabled: parsed.data.GROQ_API_KEY.length > 0,
 };

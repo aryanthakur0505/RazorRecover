@@ -4,7 +4,7 @@ import { calculateRecoveryScore } from "./scoring";
 import { getCustomerRecoveryStats } from "./customerStats";
 
 /**
- * Tool implementations exposed to the OpenAI agent.
+ * Tool implementations exposed to the AI agent (Groq by default — see env.ts).
  *
  * DATA MINIMIZATION: every function below returns only operational fields the model needs to
  * reason about a recovery decision. None of them ever return card numbers, CVV, bank

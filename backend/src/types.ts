@@ -10,9 +10,12 @@ export const RECOVERY_COST = {
   STOP: 0,
 } as const;
 
-// Approximate OpenAI cost per reasoning call (paise), used only when an attempt actually
-// escalates to the AI layer. Rough flat estimate for gpt-4o-mini-class pricing at hackathon scale.
-export const AI_COST_PER_CALL_PAISE = 50;
+// Cost per reasoning call (paise), used only when an attempt actually escalates to the AI layer.
+// Groq's free tier has no per-call charge, so this is 0 by default — if you switch GROQ_BASE_URL
+// to a paid provider (e.g. OpenAI), change this to a real flat estimate for that provider's
+// pricing so ROI numbers stay honest instead of silently treating AI calls as free when they
+// aren't.
+export const AI_COST_PER_CALL_PAISE = 0;
 
 // Recovery score band that triggers AI reasoning instead of the pure deterministic path.
 export const AI_ESCALATION_SCORE_BAND = { min: 35, max: 65 } as const;

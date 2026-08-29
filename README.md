@@ -40,14 +40,14 @@ backend/   Express + TypeScript
   │   ├─ decisionEngine.ts     deterministic action + AI-escalation gate + dunning schedule
   │   ├─ policyEngine.ts       guardrails — the ONLY place allowed to say "execute"
   │   ├─ executionService.ts   idempotency → re-verify → re-check policy → Razorpay call → audit
-  │   ├─ aiAgent.ts / aiTools.ts   OpenAI tool-calling, data-minimized, structured output
+  │   ├─ aiAgent.ts / aiTools.ts   Groq tool-calling, data-minimized, structured output
   │   ├─ simulationService.ts  seeded synthetic dataset generator (same engine, no fake logic)
   │   └─ scheduler.ts          polls due dunning retries (no Redis/queue — v1 simplicity)
   └─ prisma/schema.prisma      Merchant, Customer, Payment, RecoveryAttempt, RecoveryPolicy,
                                AuditLog, WebhookEvent (idempotency ledger)
                 │
                 ▼
-         PostgreSQL (hosted)          Razorpay Test Mode API          OpenAI API
+         PostgreSQL (hosted)          Razorpay Test Mode API          Groq API
 ```
 
 **The AI never touches money.** `aiAgent.ts` runs a bounded tool-calling loop (read-only,
@@ -58,8 +58,8 @@ engine, or the AI.
 
 **The AI is not called per payment.** Only payments the deterministic engine flags as ambiguous
 (recovery score in a middle band, an unclassifiable failure reason, or conflicting signals across
-attempts) are escalated to OpenAI. Routine cases — the majority — never make an LLM call. A
-1000-payment simulation makes **zero** OpenAI calls by design (see "Simulation mode" below).
+attempts) are escalated to Groq. Routine cases — the majority — never make an LLM call. A
+1000-payment simulation makes **zero** Groq calls by design (see "Simulation mode" below).
 
 ## Tech stack
 
@@ -68,7 +68,7 @@ attempts) are escalated to OpenAI. Routine cases — the majority — never make
 | Frontend | Next.js, TypeScript, Tailwind CSS, shadcn/ui, lucide-react, Recharts, SWR |
 | Backend | Node.js, Express, TypeScript |
 | Database | PostgreSQL + Prisma ORM |
-| AI | OpenAI API (tool/function calling, structured outputs) |
+| AI | Groq API — free, OpenAI-compatible (tool/function calling, structured outputs) |
 | Payments | Razorpay Test Mode APIs |
 | Validation | Zod (webhooks, AI output, API DTOs) |
 | Deployment | Frontend → Vercel · Backend → Render · DB → any hosted Postgres |
@@ -85,7 +85,7 @@ render.yaml Render blueprint for the backend
 
 Prerequisites: Node 20+, npm, a PostgreSQL database (local or hosted — e.g. [Neon](https://neon.tech)
 or [Supabase](https://supabase.com) both have a free tier that works fine here), a Razorpay Test
-Mode account, and (optionally) an OpenAI API key.
+Mode account, and (optionally) a free Groq API key.
 
 ### 1. Database
 
@@ -96,7 +96,7 @@ reachable from where the backend runs.
 
 ```bash
 cd backend
-cp .env.example .env      # fill in DATABASE_URL, Razorpay keys, OpenAI key, SESSION_SECRET
+cp .env.example .env      # fill in DATABASE_URL, Razorpay keys, Groq key, SESSION_SECRET
 npm install
 npx prisma migrate dev --name init   # creates tables
 npm run seed                          # creates the demo merchant + default policy
@@ -129,8 +129,9 @@ the hackathon scope).
 | `FRONTEND_URL` | Exact origin allowed by CORS — never a wildcard |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Test Mode API credentials |
 | `RAZORPAY_WEBHOOK_SECRET` | Used to verify the `X-Razorpay-Signature` header |
-| `OPENAI_API_KEY` | Optional — if unset, the AI layer reports "unavailable" and every ambiguous case is escalated to human review instead |
-| `OPENAI_MODEL` | Defaults to `gpt-4o-mini` |
+| `GROQ_API_KEY` | Optional — if unset, the AI layer reports "unavailable" and every ambiguous case is escalated to human review instead. Free key at console.groq.com |
+| `GROQ_MODEL` | Defaults to `openai/gpt-oss-120b` |
+| `GROQ_BASE_URL` | Defaults to Groq's endpoint — only change this to point at a different OpenAI-compatible provider instead |
 | `SESSION_SECRET` | Signs the mock merchant session cookie |
 
 **Frontend** (`frontend/.env.local`):
@@ -168,27 +169,30 @@ verified over the exact bytes Razorpay sent (`services/razorpay.ts#verifyWebhook
 event is deduped by a derived id (`event:entityId:timestamp`) stored in `WebhookEvent` — a
 redelivered webhook is acknowledged with 200 but is a no-op.
 
-## OpenAI setup
+## AI setup (Groq)
 
-Set `OPENAI_API_KEY` in `backend/.env`. If omitted, the backend runs fine — the dashboard shows the
-agent as "Unavailable" and ambiguous cases are routed straight to human approval instead of being
-silently guessed at. The agent only ever receives operational fields (see "Data minimization"
-below) via a fixed set of read-only tools, and its only write action is a structured
-recommendation that the policy engine independently re-evaluates.
+Set `GROQ_API_KEY` in `backend/.env` — get a free key at [console.groq.com](https://console.groq.com)
+(no credit card required). If omitted, the backend runs fine — the dashboard shows the agent as
+"Unavailable" and ambiguous cases are routed straight to human approval instead of being silently
+guessed at. The agent only ever receives operational fields (see "Data minimization" below) via a
+fixed set of read-only tools, and its only write action is a structured recommendation that the
+policy engine independently re-evaluates.
 
-**Prefer a free alternative to OpenAI?** Set `OPENAI_BASE_URL` alongside a matching `OPENAI_MODEL`
-to point the same OpenAI-compatible client at a different provider — no code changes needed, since
-both speak the identical chat-completions + tool-calling API this app already uses:
+**Using a different provider instead?** Set `GROQ_BASE_URL` and `GROQ_MODEL` to point the same
+client elsewhere — no code changes needed, since this just needs an OpenAI-compatible
+chat-completions + tool-calling API, which several providers mirror exactly:
 
-| Provider | `OPENAI_BASE_URL` | `OPENAI_MODEL` |
+| Provider | `GROQ_BASE_URL` | `GROQ_MODEL` |
 |---|---|---|
-| [Groq](https://console.groq.com) (free, no card) | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| [Groq](https://console.groq.com) (free, no card) — default | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` |
 | [Gemini](https://aistudio.google.com) (free tier) | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` |
+| OpenAI | `https://api.openai.com/v1` (or omit) | `gpt-4o-mini` |
 
-Note that even a real OpenAI key needs **billing credits** added at
+Note that an OpenAI key specifically needs **billing credits** added at
 platform.openai.com/settings/organization/billing before calls succeed — a fresh API key with $0
 credits authenticates fine but every call fails with a 429 `insufficient_quota` error, which the
-agent treats the same as "unavailable" (falls back to human review).
+agent treats the same as "unavailable" (falls back to human review). Groq's free tier doesn't have
+this requirement.
 
 ## Data minimization
 
@@ -206,7 +210,7 @@ successful payments and failures across all categories, amounts, and histories �
 one of them through the **exact same** classification → scoring → decision → policy →
 execution → audit pipeline as live traffic. The only thing swapped out is the Razorpay network
 call itself (replaced with a synthetic response shaped like a real one), so 1000 payments doesn't
-mean 1000 real Test Mode API calls or 1000 OpenAI calls. Same seed → same dataset → reproducible
+mean 1000 real Test Mode API calls or 1000 Groq calls. Same seed → same dataset → reproducible
 results.
 
 ## Recovery workflow
@@ -286,5 +290,5 @@ every deploy).
 | CORS error in browser console | `FRONTEND_URL` on the backend doesn't exactly match the frontend's origin |
 | Webhook returns 400 | Signature mismatch — `RAZORPAY_WEBHOOK_SECRET` doesn't match what's configured in the Razorpay Dashboard |
 | `prisma migrate` fails to connect | `DATABASE_URL` unreachable — check host/port/SSL mode (`?sslmode=require` for most hosted Postgres) |
-| Agent status shows "Unavailable" | `OPENAI_API_KEY` not set — this is a safe, expected fallback, not a bug |
+| Agent status shows "Unavailable" | `GROQ_API_KEY` not set — this is a safe, expected fallback, not a bug |
 | Simulation seems stuck at "Simulating…" | Check the backend logs — 1000 payments processed sequentially can take up to ~30-60s |
