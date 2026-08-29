@@ -25,28 +25,46 @@ export interface ClassificationResult {
   rationale: string;
 }
 
+// Sourced from Razorpay's actual documented error_reason values —
+// https://razorpay.com/docs/errors/payments/list/ — replacing an earlier guessed list that
+// didn't match their real API (e.g. "suspected_fraud"/"card_blacklisted" aren't real values;
+// the real risk-decline reason is "payment_risk_check_failed"). Verified 2026-08.
+
 const SUSPICIOUS_REASONS = [
-  "fraud",
-  "risk",
-  "blocked",
-  "blacklist",
-  "suspected_fraud",
-  "card_blacklisted",
+  "payment_risk_check_failed", // Razorpay/gateway/issuer risk check declined the payment
+  "compliance_violation",
+  "fraud", // kept as a generic net over free-text error_description, not a documented enum value
 ];
 
-const INSUFFICIENT_FUNDS_REASONS = ["insufficient_funds", "balance", "limit_exceeded"];
+const INSUFFICIENT_FUNDS_REASONS = [
+  "insufficient_funds",
+  "transaction_daily_limit_exceeded",
+  "transaction_limit_exceeded",
+];
 
 const TEMPORARY_REASONS = [
-  "gateway_error",
-  "network",
-  "timeout",
-  "issuer_unavailable",
-  "bank_error",
+  "bank_technical_error",
+  "gateway_technical_error",
+  "bank_not_available",
+  "issuer_technical_error",
+  "payment_declined_due_to_high_traffic",
   "server_error",
-  "processing_error",
+  "payment_timed_out",
 ];
 
-const EXPIRED_REASONS = ["card_expired", "expired", "otp_timeout", "authentication_failed"];
+// Card/session/auth no longer usable as-is — the common remediation (a payment link, letting the
+// customer retry with any method) is the same for all of these, which is why they share a bucket.
+const EXPIRED_REASONS = [
+  "card_expired",
+  "payment_session_expired",
+  "payment_collect_request_expired",
+  "otp_expired",
+  "otp_attempts_exceeded",
+  "incorrect_otp",
+  "authentication_failed",
+  "debit_instrument_blocked", // card blocked by issuer *or* by the customer themselves — not
+  "debit_instrument_inactive", // necessarily fraud; treated as "try a different method", not SUSPICIOUS
+];
 
 export function classifyFailure(input: ClassificationInput): ClassificationResult {
   const reason = (input.errorReason ?? "").toLowerCase();
@@ -54,6 +72,13 @@ export function classifyFailure(input: ClassificationInput): ClassificationResul
   const description = (input.errorDescription ?? "").toLowerCase();
   const haystack = `${reason} ${code} ${description}`;
 
+  // NOTE (verified against Razorpay's docs): "checkout.abandoned" is not a real Razorpay webhook
+  // event — there's no server-to-server notification for "customer opened checkout and left
+  // without paying" (an unpaid order just stays silent; nothing fails, so no payment.failed fires
+  // either). This branch is only ever reached by the simulation engine today, which sets this
+  // eventType synthetically. Detecting true abandonment in live traffic would need a different
+  // mechanism entirely — periodically polling for orders created more than N minutes ago with no
+  // matching payment — which nothing in this app currently does.
   if (input.eventType === "checkout.abandoned") {
     return {
       category: "CHECKOUT_ABANDONED",
