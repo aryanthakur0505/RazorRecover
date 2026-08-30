@@ -12,6 +12,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "seed:ai-demo": "tsx scripts/seed-ai-demo.ts",
+    "seed:ai-demo:clear": "tsx scripts/clear-ai-demo.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },

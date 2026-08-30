@@ -213,6 +213,22 @@ call itself (replaced with a synthetic response shaped like a real one), so 1000
 mean 1000 real Test Mode API calls or 1000 Groq calls. Same seed → same dataset → reproducible
 results.
 
+Simulation intentionally never calls the AI — see "AI Shadow Mode" below, which is real-traffic
+only. To populate that feature with realistic, individually-named demo data instead of waiting for
+live ambiguous cases, run `npm run seed:ai-demo` (backend) — it makes real Groq calls and real
+scoring off real backdated history, never touches the real Razorpay API, and every outcome is a
+fair, unstaged roll (`npm run seed:ai-demo:clear` removes it again).
+
+## AI Shadow Mode
+
+Every payment escalated to the AI also has the deterministic engine's own decision computed on
+the same input — never acted on, purely for comparison (`RecoveryAttempt.shadowDecision`). The
+"AI Impact" card on the Command Center reports how often they agreed, and for disagreements, an
+*estimated* incremental net revenue figure — necessarily an estimate, not a fact, since the same
+payment can't be given two different actions in reality; the untaken path is projected using the
+same recovery-score probability model the rest of the app already trusts for that action. This is
+what answers "is the AI actually adding value?" with a number instead of an assumption.
+
 ## Recovery workflow
 
 `RETRY` → creates a fresh Razorpay Order (Test Mode can't silently re-charge a failed card) with a
