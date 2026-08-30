@@ -8,6 +8,7 @@ import { BreakdownBarChart } from "@/components/dashboard/BreakdownBarChart";
 import { OutcomeSplit } from "@/components/dashboard/OutcomeSplit";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
 import { SimulationPanel } from "@/components/dashboard/SimulationPanel";
+import { AIImpactCard } from "@/components/dashboard/AIImpactCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CardSkeleton, ErrorState, TableSkeleton } from "@/components/shared/States";
 import { formatCurrency, formatPercent, categoryLabel, actionLabel } from "@/lib/format";
@@ -72,6 +73,8 @@ export default function CommandCenterPage() {
           <AgentStatusCard status={metrics.agentStatus} />
         </>
       )}
+
+      <AIImpactCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

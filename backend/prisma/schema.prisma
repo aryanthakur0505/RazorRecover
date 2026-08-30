@@ -130,6 +130,12 @@ model RecoveryAttempt {
   riskFlags       Json?
   policyChecks    Json?
 
+  // "Shadow mode" — what the deterministic engine alone would have decided on this same input,
+  // computed (but never acted on) alongside every AI recommendation. Lets us measure whether the
+  // AI is actually adding value instead of just trusting that it is. Null whenever usedAI is
+  // false — there's nothing to compare when no AI recommendation was ever made.
+  shadowDecision Json?
+
   requiresApproval Boolean        @default(false)
   approvalStatus   ApprovalStatus @default(NOT_REQUIRED)
   approvalNote     String?

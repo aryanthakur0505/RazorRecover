@@ -181,3 +181,29 @@ export interface SimulationJob {
   result?: SimulationSummary;
   error?: string;
 }
+
+export interface AIShadowRow {
+  attemptId: string;
+  paymentId: string;
+  customerName: string;
+  amount: number;
+  status: string;
+  aiAction: RecoveryAction;
+  aiConfidence: number;
+  shadowAction: RecoveryAction;
+  shadowConfidence: number;
+  agreed: boolean;
+  actualNetRecovered: number | null;
+  estimatedShadowNet: number | null;
+  delta: number | null;
+}
+
+export interface AIShadowComparison {
+  totalAIAssisted: number;
+  agreedCount: number;
+  disagreedCount: number;
+  agreementRate: number;
+  resolvedDisagreements: number;
+  estimatedIncrementalNet: number;
+  rows: AIShadowRow[];
+}

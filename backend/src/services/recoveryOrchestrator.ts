@@ -59,6 +59,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   let decision: DecisionResult;
   let usedAI = false;
   let aiOutput: unknown = null;
+  let shadowDecision: unknown = null;
 
   const escalate = shouldEscalateToAI(decisionInput);
   if (escalate && !opts.simulate) {
@@ -68,6 +69,19 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
     if (ai) {
       usedAI = true;
       aiOutput = ai.recommendation;
+
+      // "Shadow mode": compute what the deterministic engine alone would have decided on this
+      // exact input, purely to measure the AI against — never acted on, never executed. This is
+      // what lets /api/metrics/ai-comparison answer "is the AI actually adding value?" instead of
+      // just asserting it, since we never run two different actions on the same real payment.
+      const shadow = decideDeterministic(decisionInput);
+      shadowDecision = {
+        action: shadow.action,
+        confidence: shadow.confidence,
+        cause: shadow.cause,
+        requiresApproval: shadow.requiresApproval,
+      };
+
       decision = {
         action: ai.recommendation.recommended_action,
         source: "AI",
@@ -128,6 +142,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
       idempotencyKey,
       usedAI,
       aiOutput: aiOutput as any,
+      shadowDecision: shadowDecision as any,
       decisionFactors: decision.decisionFactors as any,
       riskFlags: decision.riskFlags as any,
       requiresApproval: decision.requiresApproval,

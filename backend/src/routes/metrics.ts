@@ -9,6 +9,7 @@ import {
   getRecoveryByFailureType,
   getRecoveryByAction,
   getAttemptOutcomeBreakdown,
+  getAIShadowComparison,
 } from "../services/metricsService";
 import { prisma } from "../db";
 
@@ -36,6 +37,17 @@ metricsRouter.get(
       getAttemptOutcomeBreakdown(req.merchantId!),
     ]);
     res.json({ revenueOverTime, byFailureType, byAction, outcomeBreakdown });
+  }),
+);
+
+/** "Shadow mode": how the AI's recommendations compare to what the deterministic engine alone
+ *  would have decided on the same input — see metricsService.getAIShadowComparison for the full
+ *  explanation of what's measured versus estimated here. */
+metricsRouter.get(
+  "/ai-comparison",
+  asyncHandler(async (req, res) => {
+    const comparison = await getAIShadowComparison(req.merchantId!);
+    res.json(comparison);
   }),
 );
 

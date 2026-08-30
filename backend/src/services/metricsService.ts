@@ -1,4 +1,6 @@
 import { prisma } from "../db";
+import { RECOVERY_COST, ESCALATION_MANUAL_RESOLUTION_RATE } from "../types";
+import { RecoveryAction, Prisma } from "@prisma/client";
 
 /**
  * All business metrics are computed live from stored rows — nothing here is a hand-set or
@@ -109,4 +111,115 @@ export async function getAttemptOutcomeBreakdown(merchantId: string) {
   const succeeded = attempts.filter((a) => a.status === "SUCCEEDED").length;
   const failed = attempts.filter((a) => a.status === "FAILED").length;
   return { succeeded, failed };
+}
+
+interface ShadowDecision {
+  action: RecoveryAction;
+  confidence: number;
+  cause?: string;
+  requiresApproval: boolean;
+}
+
+export interface AIShadowRow {
+  attemptId: string;
+  paymentId: string;
+  customerName: string;
+  amount: number;
+  status: string;
+  aiAction: RecoveryAction;
+  aiConfidence: number;
+  shadowAction: RecoveryAction;
+  shadowConfidence: number;
+  agreed: boolean;
+  actualNetRecovered: number | null;
+  estimatedShadowNet: number | null;
+  delta: number | null;
+}
+
+/**
+ * The estimated net value of an action nobody actually took, using the exact same probability
+ * model the rest of this system already trusts for that action (recoveryScore/100 for
+ * RETRY/PAYMENT_LINK, the documented flat rate for ESCALATE, and 0 — no attempt, no revenue — for
+ * STOP). This is a projection, not a measured fact: we can never run two different actions on the
+ * same real payment, so an estimate is the only honest way to ask "what would the other path have
+ * likely netted?" — every consumer of this number must keep presenting it as an estimate.
+ */
+function estimateShadowNet(action: RecoveryAction, amount: number, recoveryScore: number | null): number {
+  if (action === "STOP") return 0;
+  if (action === "ESCALATE") return amount * ESCALATION_MANUAL_RESOLUTION_RATE - RECOVERY_COST.ESCALATE;
+  const probability = (recoveryScore ?? 30) / 100;
+  return amount * probability - RECOVERY_COST[action];
+}
+
+/**
+ * "Shadow mode" comparison: for every AI-assisted decision, the deterministic engine's own
+ * decision was computed alongside it (never acted on — see recoveryOrchestrator). This answers
+ * "is the AI actually adding value, or would the deterministic engine alone have done just as
+ * well?" instead of just assuming it. Real revenue is compared for AI (what actually happened);
+ * the deterministic path is necessarily an estimate (see estimateShadowNet) since it was never run.
+ */
+export async function getAIShadowComparison(merchantId: string): Promise<{
+  totalAIAssisted: number;
+  agreedCount: number;
+  disagreedCount: number;
+  agreementRate: number;
+  resolvedDisagreements: number;
+  estimatedIncrementalNet: number;
+  rows: AIShadowRow[];
+}> {
+  const attempts = await prisma.recoveryAttempt.findMany({
+    where: { merchantId, usedAI: true, shadowDecision: { not: Prisma.JsonNull } },
+    include: { payment: { include: { customer: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+
+  const rows: AIShadowRow[] = attempts.map((a) => {
+    const shadow = a.shadowDecision as unknown as ShadowDecision;
+    const agreed = a.action === shadow.action;
+    // A genuine recovery outcome, not an infrastructure hiccup — a Razorpay API error (network
+    // blip, invalid test data, etc.) lands the attempt at FAILED/API_ERROR too, but that's not a
+    // fair reflection of whether the *recommendation* was good, so it doesn't count as "resolved"
+    // here (unlike the dashboard's broader recovery-rate metrics, which don't distinguish this).
+    const isResolved = a.status === "SUCCEEDED" || (a.status === "FAILED" && a.outcome === "NOT_RECOVERED");
+    const actualNetRecovered = isResolved ? (a.netRecovered ?? 0) : null;
+    const estimatedShadowNet = agreed
+      ? actualNetRecovered // identical action taken -> the real outcome IS the shadow outcome
+      : estimateShadowNet(shadow.action, a.payment.amount, a.payment.recoveryScore);
+    const delta =
+      !agreed && actualNetRecovered !== null && estimatedShadowNet !== null
+        ? actualNetRecovered - estimatedShadowNet
+        : null;
+
+    return {
+      attemptId: a.id,
+      paymentId: a.paymentId,
+      customerName: a.payment.customer.name,
+      amount: a.payment.amount,
+      status: a.status,
+      aiAction: a.action,
+      aiConfidence: (a.aiOutput as any)?.confidence_score ?? 0,
+      shadowAction: shadow.action,
+      shadowConfidence: shadow.confidence,
+      agreed,
+      actualNetRecovered,
+      estimatedShadowNet,
+      delta,
+    };
+  });
+
+  const agreedCount = rows.filter((r) => r.agreed).length;
+  const disagreedRows = rows.filter((r) => !r.agreed);
+  const resolvedDisagreements = disagreedRows.filter((r) => r.delta !== null);
+  const estimatedIncrementalNet = resolvedDisagreements.reduce((sum, r) => sum + (r.delta ?? 0), 0);
+
+  return {
+    totalAIAssisted: rows.length,
+    agreedCount,
+    disagreedCount: disagreedRows.length,
+    agreementRate: rows.length > 0 ? agreedCount / rows.length : 0,
+    resolvedDisagreements: resolvedDisagreements.length,
+    estimatedIncrementalNet,
+    rows,
+  };
 }
