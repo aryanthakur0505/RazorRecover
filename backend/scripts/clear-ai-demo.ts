@@ -1,8 +1,8 @@
-/** Removes the seed-ai-demo.ts dataset (demo-ai-1..10) — run before re-seeding for a fresh demo. */
+/** Removes the seed-ai-demo.ts dataset (demo-ai-1..15) — run before re-seeding for a fresh demo. */
 import { prisma } from "../src/db";
 
 async function main() {
-  const ids = Array.from({ length: 10 }, (_, i) => `demo-ai-${i + 1}`);
+  const ids = Array.from({ length: 15 }, (_, i) => `demo-ai-${i + 1}`);
   await prisma.auditLog.deleteMany({ where: { customerId: { in: ids } } });
   await prisma.recoveryAttempt.deleteMany({ where: { payment: { customerId: { in: ids } } } });
   await prisma.payment.deleteMany({ where: { customerId: { in: ids } } });
