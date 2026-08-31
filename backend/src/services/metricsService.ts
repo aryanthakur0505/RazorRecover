@@ -134,6 +134,10 @@ export interface AIShadowRow {
   actualNetRecovered: number | null;
   estimatedShadowNet: number | null;
   delta: number | null;
+  // True when the deterministic engine would have given up entirely (STOP) but the AI chose to
+  // act anyway — the specific case that most directly demonstrates AI value-add, as distinct from
+  // "AI was more/less cautious than the engine on a case both would have acted on."
+  engineWouldHaveMissedThis: boolean;
 }
 
 /**
@@ -165,6 +169,12 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
   agreementRate: number;
   resolvedDisagreements: number;
   estimatedIncrementalNet: number;
+  // Real, actual revenue (not an estimate) recovered on cases the deterministic engine would
+  // have given up on entirely (shadow action STOP) — the clearest possible evidence of AI adding
+  // value, isolated from the noisier "AI was more/less cautious on a case both would act on" mix
+  // that dominates estimatedIncrementalNet.
+  revenueFoundByAI: number;
+  casesFoundByAI: number;
   rows: AIShadowRow[];
 }> {
   const attempts = await prisma.recoveryAttempt.findMany({
@@ -205,6 +215,7 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
       actualNetRecovered,
       estimatedShadowNet,
       delta,
+      engineWouldHaveMissedThis: !agreed && shadow.action === "STOP" && a.action !== "STOP",
     };
   });
 
@@ -213,6 +224,21 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
   const resolvedDisagreements = disagreedRows.filter((r) => r.delta !== null);
   const estimatedIncrementalNet = resolvedDisagreements.reduce((sum, r) => sum + (r.delta ?? 0), 0);
 
+  const foundByAI = rows.filter(
+    (r) => r.engineWouldHaveMissedThis && r.actualNetRecovered !== null && r.actualNetRecovered > 0,
+  );
+  const revenueFoundByAI = foundByAI.reduce((sum, r) => sum + (r.actualNetRecovered ?? 0), 0);
+
+  // Surface the clearest evidence first: real recovered revenue the engine would have missed,
+  // then by how large the delta is either direction — not just chronological order, which buries
+  // the interesting cases under whatever happened most recently.
+  const sortedRows = [...rows].sort((a, b) => {
+    if (a.engineWouldHaveMissedThis !== b.engineWouldHaveMissedThis) return a.engineWouldHaveMissedThis ? -1 : 1;
+    const aAbs = Math.abs(a.delta ?? 0);
+    const bAbs = Math.abs(b.delta ?? 0);
+    return bAbs - aAbs;
+  });
+
   return {
     totalAIAssisted: rows.length,
     agreedCount,
@@ -220,6 +246,8 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
     agreementRate: rows.length > 0 ? agreedCount / rows.length : 0,
     resolvedDisagreements: resolvedDisagreements.length,
     estimatedIncrementalNet,
-    rows,
+    revenueFoundByAI,
+    casesFoundByAI: foundByAI.length,
+    rows: sortedRows,
   };
 }

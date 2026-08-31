@@ -196,6 +196,7 @@ export interface AIShadowRow {
   actualNetRecovered: number | null;
   estimatedShadowNet: number | null;
   delta: number | null;
+  engineWouldHaveMissedThis: boolean;
 }
 
 export interface AIShadowComparison {
@@ -205,5 +206,7 @@ export interface AIShadowComparison {
   agreementRate: number;
   resolvedDisagreements: number;
   estimatedIncrementalNet: number;
+  revenueFoundByAI: number;
+  casesFoundByAI: number;
   rows: AIShadowRow[];
 }
