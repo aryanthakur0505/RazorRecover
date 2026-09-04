@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PolicyForm } from "@/components/policies/PolicyForm";
+import { DoNotContactList } from "@/components/policies/DoNotContactList";
 import { AuditTable } from "@/components/policies/AuditTable";
 import { ListFilterBar } from "@/components/shared/ListFilterBar";
 import { LoadMoreFooter } from "@/components/shared/LoadMoreFooter";
@@ -47,6 +48,8 @@ export default function PoliciesPage() {
       ) : (
         <PolicyForm policy={policyData.policy} onSaved={() => mutatePolicy()} />
       )}
+
+      <DoNotContactList />
 
       <Card>
         <CardHeader>

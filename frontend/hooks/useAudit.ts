@@ -13,17 +13,21 @@ export interface AuditFilters {
 interface AuditPage {
   logs: AuditLogEntry[];
   total: number;
-  page: number;
   pageSize: number;
+  nextCursor: string | null;
 }
 
-function buildKey(filters: AuditFilters, pageIndex: number) {
+// Cursor-based, not page-number-based — see useOpportunities.ts's buildKey doc for why. Every
+// action in this app writes an audit row, so offset paging here is especially prone to the same
+// "duplicate React key" bug from concurrent inserts.
+function buildKey(filters: AuditFilters, previousPageData: AuditPage | null) {
+  if (previousPageData && !previousPageData.nextCursor) return null;
   const params = new URLSearchParams();
   if (filters.q) params.set("q", filters.q);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
-  params.set("page", String(pageIndex + 1));
   params.set("pageSize", String(PAGE_SIZE));
+  if (previousPageData?.nextCursor) params.set("cursor", previousPageData.nextCursor);
   return `/api/audit?${params.toString()}`;
 }
 
@@ -31,10 +35,7 @@ export function useAuditLog(filters: AuditFilters) {
   const filterKey = JSON.stringify(filters);
 
   const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite<AuditPage>(
-    (pageIndex, previousPageData) => {
-      if (previousPageData && previousPageData.logs.length < previousPageData.pageSize) return null;
-      return buildKey(filters, pageIndex);
-    },
+    (_pageIndex, previousPageData) => buildKey(filters, previousPageData),
     { refreshInterval: 10000, revalidateFirstPage: true },
   );
 

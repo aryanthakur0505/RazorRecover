@@ -6,8 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { SWRProvider } from "@/components/providers/SWRProvider";
-import { SessionGate } from "@/components/providers/SessionGate";
-import { NavBar } from "@/components/shared/NavBar";
+import { AppShell } from "@/components/providers/AppShell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,12 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SWRProvider>
             <SessionProvider>
               <TooltipProvider>
-                <SessionGate>
-                  <NavBar />
-                  <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-                    {children}
-                  </main>
-                </SessionGate>
+                <AppShell>{children}</AppShell>
                 <Toaster />
               </TooltipProvider>
             </SessionProvider>

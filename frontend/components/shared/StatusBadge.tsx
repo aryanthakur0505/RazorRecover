@@ -27,7 +27,10 @@ const CONFIG: Record<Status, { label: string; icon: typeof CheckCircle2; classNa
   APPROVED: { label: "Approved", icon: CheckCircle2, className: "bg-chart-1/15 text-chart-1" },
   REJECTED: { label: "Rejected", icon: XCircle, className: "bg-status-critical/15 text-status-critical" },
   EXECUTING: { label: "Executing", icon: Loader2, className: "bg-chart-1/15 text-chart-1" },
-  EXECUTED: { label: "Executed", icon: Clock, className: "bg-chart-1/15 text-chart-1" },
+  // "Executed" undersold what this actually means: the action was sent (link/escalation/EMI
+  // offer) and now genuinely depends on someone else acting — the customer clicking a link,
+  // picking an EMI tenure, or a human's follow-up landing. Not won, not lost, still in play.
+  EXECUTED: { label: "Recovering", icon: Clock, className: "bg-chart-1/15 text-chart-1" },
   SUCCEEDED: { label: "Recovered", icon: CheckCircle2, className: "bg-status-good/15 text-success-text" },
   FAILED: { label: "Not Recovered", icon: XCircle, className: "bg-status-critical/15 text-status-critical" },
   STOPPED: { label: "Stopped", icon: Ban, className: "bg-muted text-muted-foreground" },

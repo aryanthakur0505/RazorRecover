@@ -38,6 +38,7 @@ const ACTION_LABELS: Record<string, string> = {
   PAYMENT_LINK: "Payment Link",
   STOP: "Stop",
   ESCALATE: "Escalate",
+  EMI_PLAN: "EMI Plan",
 };
 export function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;

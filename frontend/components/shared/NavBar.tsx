@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { LayoutDashboard, ListChecks, ShieldCheck, Menu, ShieldHalf, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, ListChecks, ShieldCheck, Menu, ShieldHalf, Sun, Moon, Search, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/components/providers/SessionProvider";
+import { CommandPalette } from "@/components/shared/CommandPalette";
 
 const LINKS = [
   { href: "/", label: "Command Center", icon: LayoutDashboard },
   { href: "/operations", label: "Recovery Operations", icon: ListChecks },
+  { href: "/plans", label: "EMI & Promises", icon: CalendarClock },
   { href: "/policies", label: "Policies & Audit", icon: ShieldCheck },
 ];
 
@@ -65,7 +67,7 @@ export function NavBar() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 print:hidden">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6">
         <div className="flex items-center gap-2 font-semibold">
           <ShieldHalf className="size-5 text-chart-1" />
@@ -77,6 +79,7 @@ export function NavBar() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <CommandPalette />
           <span className="hidden text-sm text-muted-foreground sm:inline">{merchantName}</span>
           <ThemeToggle />
           <Sheet open={open} onOpenChange={setOpen}>

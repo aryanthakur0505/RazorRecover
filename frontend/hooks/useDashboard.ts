@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { DashboardMetrics, ChartsResponse, RecoveryAttempt, AIShadowComparison } from "@/lib/types";
+import { DashboardMetrics, ChartsResponse, RecoveryAttempt, AIShadowComparison, OutcomeFunnel, AIConfidenceCalibration } from "@/lib/types";
 
 export function useDashboardMetrics() {
   return useSWR<DashboardMetrics>("/api/metrics/dashboard", { refreshInterval: 15000 });
@@ -17,4 +17,12 @@ export function useRecentActivity() {
 
 export function useAIComparison() {
   return useSWR<AIShadowComparison>("/api/metrics/ai-comparison", { refreshInterval: 20000 });
+}
+
+export function useOutcomeFunnel() {
+  return useSWR<OutcomeFunnel>("/api/metrics/outcome-funnel", { refreshInterval: 20000 });
+}
+
+export function useAIConfidenceCalibration() {
+  return useSWR<AIConfidenceCalibration>("/api/metrics/ai-calibration", { refreshInterval: 20000 });
 }

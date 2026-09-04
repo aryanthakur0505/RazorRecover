@@ -55,7 +55,7 @@ export function AIImpactCard() {
           />
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat label="AI-Assisted Decisions" value={data.totalAIAssisted.toLocaleString()} />
               <Stat label="Agreed with Engine" value={formatPercent(data.agreementRate)} />
               <Stat
@@ -64,23 +64,16 @@ export function AIImpactCard() {
                 tone={data.revenueFoundByAI > 0 ? "good" : "neutral"}
               />
               <Stat label="Disagreements Resolved" value={data.resolvedDisagreements.toLocaleString()} />
-              <Stat
-                label="Est. Incremental Net"
-                value={formatCurrency(data.estimatedIncrementalNet)}
-                tone={data.estimatedIncrementalNet >= 0 ? "good" : "critical"}
-              />
             </div>
 
             <p className="text-xs text-muted-foreground">
               <strong className="text-foreground">Revenue AI Found</strong> is real, measured
               revenue (not an estimate) from cases where the deterministic engine would have given
               up entirely (Stop) but the AI chose to act anyway, and it paid off — the clearest
-              single number for "did the AI add value." <strong className="text-foreground">Est.
-              Incremental Net</strong> is the broader picture across every disagreement, including
-              cases where both would have acted but chose differently — and since the deterministic
-              path is never actually run, that side is necessarily a{" "}
-              <strong className="text-foreground">projection</strong>, using the same recovery-score
-              probability model the rest of this app already relies on.
+              single number for &quot;did the AI add value.&quot; The table below is deliberately
+              limited to what actually happened — what the engine would have chosen instead is
+              shown, but not priced in ₹, since that side was never actually run and pricing it
+              would mean presenting a modeled guess as if it were a measured fact.
             </p>
 
             {data.disagreedCount === 0 ? (
@@ -96,9 +89,7 @@ export function AIImpactCard() {
                       <TableHead>Amount</TableHead>
                       <TableHead>AI chose</TableHead>
                       <TableHead>Engine would've</TableHead>
-                      <TableHead className="hidden sm:table-cell">Actual (AI)</TableHead>
-                      <TableHead className="hidden sm:table-cell">Est. (Engine)</TableHead>
-                      <TableHead>Delta</TableHead>
+                      <TableHead>Recovered</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -135,23 +126,17 @@ export function AIImpactCard() {
                               {actionLabel(r.shadowAction)}
                             </span>
                           </TableCell>
-                          <TableCell className="hidden tabular-nums sm:table-cell">
-                            {r.actualNetRecovered !== null ? formatCurrency(r.actualNetRecovered) : "pending"}
-                          </TableCell>
-                          <TableCell className="hidden tabular-nums text-muted-foreground sm:table-cell">
-                            {r.estimatedShadowNet !== null ? formatCurrency(r.estimatedShadowNet) : "—"}
-                          </TableCell>
                           <TableCell
                             className={cn(
                               "tabular-nums font-medium",
-                              r.delta === null
+                              r.actualNetRecovered === null
                                 ? "text-muted-foreground"
-                                : r.delta >= 0
+                                : r.actualNetRecovered > 0
                                   ? "text-success-text"
-                                  : "text-status-critical",
+                                  : "text-muted-foreground",
                             )}
                           >
-                            {r.delta !== null ? formatCurrency(r.delta) : "pending"}
+                            {r.actualNetRecovered !== null ? formatCurrency(r.actualNetRecovered) : "pending"}
                           </TableCell>
                         </TableRow>
                       ))}

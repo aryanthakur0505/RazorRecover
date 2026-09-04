@@ -1,15 +1,19 @@
 "use client";
 
 import { useDashboardMetrics, useCharts, useRecentActivity } from "@/hooks/useDashboard";
+import { useSession } from "@/components/providers/SessionProvider";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { AgentStatusCard } from "@/components/dashboard/AgentStatusCard";
 import { RevenueChart } from "@/components/dashboard/RevenueChart";
 import { BreakdownBarChart } from "@/components/dashboard/BreakdownBarChart";
 import { OutcomeSplit } from "@/components/dashboard/OutcomeSplit";
+import { OutcomeFunnelCard } from "@/components/dashboard/OutcomeFunnelCard";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
 import { SimulationPanel } from "@/components/dashboard/SimulationPanel";
 import { AIImpactCard } from "@/components/dashboard/AIImpactCard";
+import { AICalibrationCard } from "@/components/dashboard/AICalibrationCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CardSkeleton, ErrorState, TableSkeleton } from "@/components/shared/States";
 import { formatCurrency, formatPercent, categoryLabel, actionLabel } from "@/lib/format";
 import {
@@ -20,19 +24,39 @@ import {
   Wallet,
   LineChart as LineChartIcon,
   Receipt,
+  Printer,
 } from "lucide-react";
 
 export default function CommandCenterPage() {
   const { data: metrics, error: metricsError, isLoading: metricsLoading, mutate: mutateMetrics } = useDashboardMetrics();
   const { data: charts, isLoading: chartsLoading } = useCharts();
   const { data: activity, isLoading: activityLoading } = useRecentActivity();
+  const { merchantName } = useSession();
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Executive Command Center</h1>
+      {/* Screen-only header, with the one-click export. */}
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Executive Command Center</h1>
+          <p className="text-sm text-muted-foreground">
+            Live revenue-recovery performance across every failed and at-risk payment.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="size-4" />
+          Export Report
+        </Button>
+      </div>
+
+      {/* Print-only header — browsers already print a URL/date footer, but this makes the report
+          identify itself (and who it's for) without relying on that. Uses the browser's own
+          "Print → Save as PDF" rather than a server-rendered PDF, so there's no new dependency and
+          the report always matches exactly what's on screen. */}
+      <div className="hidden print:block">
+        <h1 className="text-2xl font-semibold">RazorRecover — Executive Summary</h1>
         <p className="text-sm text-muted-foreground">
-          Live revenue-recovery performance across every failed and at-risk payment.
+          {merchantName} · Generated {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
 
@@ -74,7 +98,11 @@ export default function CommandCenterPage() {
         </>
       )}
 
+      <OutcomeFunnelCard />
+
       <AIImpactCard />
+
+      <AICalibrationCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -133,9 +161,13 @@ export default function CommandCenterPage() {
         </Card>
       </div>
 
-      <SimulationPanel />
+      {/* Neither of these belongs in a printed executive summary — one's an action panel (run a
+          new simulation), the other's a raw, ever-growing event list, not a summary figure. */}
+      <div className="print:hidden">
+        <SimulationPanel />
+      </div>
 
-      <Card>
+      <Card className="print:hidden">
         <CardHeader>
           <CardTitle>Recent Recovery Activity</CardTitle>
         </CardHeader>

@@ -6,14 +6,28 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFo
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { DoNotContactControl } from "@/components/shared/DoNotContactControl";
 import { RiskFlagBadges } from "@/components/operations/RiskFlagBadges";
 import { useOpportunity } from "@/hooks/useOpportunities";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate, actionLabel, categoryLabel } from "@/lib/format";
-import { CheckCircle2, XCircle, PlayCircle, Sparkles, Loader2, UserCheck } from "lucide-react";
+import { CheckCircle2, XCircle, PlayCircle, Sparkles, Loader2, UserCheck, RotateCcw } from "lucide-react";
+import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+
+// Mirrors the backend's OVERRIDABLE_STOP_REASONS — a stop for one of these is a timing/volume
+// guardrail (or the deterministic engine's own low-score call), the kind of thing a merchant might
+// reasonably know better than the default for one specific case. Anything else (payment already
+// resolved, suspicious, do-not-contact) never gets a one-click override here.
+const OVERRIDABLE_STOP_REASONS = new Set([
+  "MAX_RETRIES_REACHED",
+  "COMMUNICATION_LIMIT_REACHED",
+  "QUIET_HOURS",
+  "RETRY_TOO_SOON",
+  "STOPPED_BY_POLICY",
+]);
 
 export function DecisionDrawer({
   attemptId,
@@ -27,7 +41,26 @@ export function DecisionDrawer({
   const { data, mutate, isLoading } = useOpportunity(attemptId);
   const [busy, setBusy] = useState(false);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [retryPending, setRetryPending] = useState(false);
+  const [retryNote, setRetryNote] = useState("");
   const attempt = data?.attempt;
+
+  async function retryOverride() {
+    if (!attemptId) return;
+    setBusy(true);
+    try {
+      await api.post(`/api/recovery/${attemptId}/retry-override`, { note: retryNote || undefined });
+      toast.success("Retrying — this now needs your approval before it reaches Razorpay.");
+      setRetryPending(false);
+      setRetryNote("");
+      await mutate();
+      onMutated();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not retry this attempt.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function act(action: "approve" | "reject" | "execute") {
     if (!attemptId) return;
@@ -81,13 +114,19 @@ export function DecisionDrawer({
             <>
               <section className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium">{attempt.payment.customer.name}</p>
+                  <Link href={`/customers/${attempt.payment.customer.id}`} className="font-medium hover:underline">
+                    {attempt.payment.customer.name}
+                  </Link>
                   <StatusBadge status={attempt.status} />
                 </div>
                 <p className="text-2xl font-semibold tabular-nums">{formatCurrency(attempt.payment.amount)}</p>
                 <p className="text-sm text-muted-foreground">
                   {categoryLabel(attempt.payment.failureCategory)} · Attempt #{attempt.attemptNumber} · {formatDate(attempt.createdAt)}
                 </p>
+              </section>
+
+              <section className="space-y-2">
+                <DoNotContactControl customer={attempt.payment.customer} onMutated={() => mutate()} />
               </section>
 
               <Separator />
@@ -155,6 +194,47 @@ export function DecisionDrawer({
                         </li>
                       ))}
                     </ul>
+                  </section>
+                </>
+              )}
+
+              {attempt.status === "STOPPED" && attempt.outcome && OVERRIDABLE_STOP_REASONS.has(attempt.outcome) && (
+                <>
+                  <Separator />
+                  <section className="space-y-2">
+                    <h3 className="text-sm font-semibold">Override</h3>
+                    <p className="text-sm text-muted-foreground">
+                      This was stopped by a guardrail (retry limit, communication limit, quiet hours, retry
+                      spacing, or a low recovery score) — not because there&apos;s nothing to recover. If you know
+                      something the score doesn&apos;t, you can retry it anyway. This always requires your approval
+                      before anything reaches Razorpay, whatever the amount.
+                    </p>
+                    {retryPending ? (
+                      <div className="space-y-1.5 rounded-md border border-dashed p-3">
+                        <Label htmlFor="retry-note">Reason (optional)</Label>
+                        <Textarea
+                          id="retry-note"
+                          value={retryNote}
+                          onChange={(e) => setRetryNote(e.target.value)}
+                          placeholder="e.g. Spoke with the customer directly, they've confirmed they'll pay."
+                          rows={2}
+                        />
+                        <div className="flex justify-end gap-2 pt-1">
+                          <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRetryPending(false)}>
+                            Cancel
+                          </Button>
+                          <Button size="sm" disabled={busy} onClick={retryOverride}>
+                            {busy ? <Loader2 className="size-4 animate-spin" /> : <RotateCcw className="size-4" />}
+                            Confirm Retry
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={() => setRetryPending(true)}>
+                        <RotateCcw className="size-4" />
+                        Retry Anyway
+                      </Button>
+                    )}
                   </section>
                 </>
               )}
@@ -234,7 +314,7 @@ export function DecisionDrawer({
                   Mark Recovered
                 </Button>
               </>
-            ) : (
+            ) : attempt.status === "STOPPED" && attempt.outcome && OVERRIDABLE_STOP_REASONS.has(attempt.outcome) ? null : (
               <p className="w-full text-center text-sm text-muted-foreground">
                 This attempt is {attempt.status.toLowerCase().replace(/_/g, " ")} — no further action available.
               </p>

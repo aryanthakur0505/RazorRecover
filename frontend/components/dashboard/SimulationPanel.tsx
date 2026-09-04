@@ -87,6 +87,20 @@ export function SimulationPanel() {
                 <Stat label="Recovery Rate" value={formatPercent(job.result.recoveryRate)} />
               </div>
             )}
+
+            {job.status === "COMPLETED" && job.result && (
+              <p className="text-xs text-muted-foreground">
+                {job.result.aiEscalatedCount > 0 ? (
+                  <>
+                    <Sparkles className="mr-1 inline size-3 text-chart-1" />
+                    {job.result.aiEscalatedCount} genuinely ambiguous payment{job.result.aiEscalatedCount === 1 ? "" : "s"} in
+                    this run made a real AI call — see AI Impact on this dashboard.
+                  </>
+                ) : (
+                  "No payment in this run was ambiguous enough to escalate to AI."
+                )}
+              </p>
+            )}
           </div>
         )}
       </CardContent>
