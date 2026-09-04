@@ -210,14 +210,22 @@ successful payments and failures across all categories, amounts, and histories �
 one of them through the **exact same** classification → scoring → decision → policy →
 execution → audit pipeline as live traffic. The only thing swapped out is the Razorpay network
 call itself (replaced with a synthetic response shaped like a real one), so 1000 payments doesn't
-mean 1000 real Test Mode API calls or 1000 Groq calls. Same seed → same dataset → reproducible
-results.
+mean 1000 real Test Mode API calls. Same seed → same dataset → reproducible results (with one
+narrow exception — see below).
 
-Simulation intentionally never calls the AI — see "AI Shadow Mode" below, which is real-traffic
-only. To populate that feature with realistic, individually-named demo data instead of waiting for
-live ambiguous cases, run `npm run seed:ai-demo` (backend) — it makes real Groq calls and real
-scoring off real backdated history, never touches the real Razorpay API, and every outcome is a
-fair, unstaged roll (`npm run seed:ai-demo:clear` removes it again).
+Simulation mostly skips real AI calls (hundreds of ambiguous payments in one run would mean
+hundreds of real Groq calls) — with one bounded exception: up to `SIMULATION_AI_ESCALATION_CAP`
+(20) genuinely ambiguous payments per run *do* make a real Groq call, so "AI Impact — Shadow Mode"
+gets organically populated by simulated traffic too, not only by hand-run demo data. The run's
+summary reports `aiEscalatedCount` — if it's 0, that run just didn't happen to generate any
+ambiguous cases (an 8%-weighted category plus a mid-range score band, so it varies run to run), not
+a bug. This is the one place a simulation isn't perfectly reproducible run-to-run, since a live LLM
+call isn't seed-controlled — an acceptable, explicit trade-off for the feature to mean anything.
+
+To add more hand-picked, individually-named demo cases beyond what simulation naturally produces,
+`npm run seed:ai-demo` (backend) still works the same way — real Groq calls, real scoring off real
+backdated history, never touches the real Razorpay API, every outcome a fair, unstaged roll
+(`npm run seed:ai-demo:clear` removes it again).
 
 ## AI Shadow Mode
 
@@ -245,11 +253,42 @@ Enforced in `services/policyEngine.ts`, independent of who recommended the actio
 - **Amount limit** — auto-execution capped at `maxAutoRecoveryAmount`; above it, requires merchant approval
 - **Communication limit** — at most `maxCommunicationsPerPeriod` payment links per customer per `communicationPeriodHours`
 - **Suspicious payment rule** — `RETRY`/`PAYMENT_LINK` forbidden outright
+- **Do-not-contact rule** — same as suspicious payment, but per-customer and merchant-controlled
+  (see below) rather than derived from the payment itself
 - **Payment state rule** — never acts on an already-captured/refunded payment
 - **Quiet hours** — no automated retry/link inside the configured window
 - **Minimum retry spacing** — enforces `minRetryIntervalMinutes` between attempts
 
 All are editable from Policies & Audit and take effect immediately on the next evaluation.
+
+## Do-not-contact list
+
+A merchant can flag an individual customer as do-not-contact from the Recovery Decision drawer —
+e.g. known fraud, already refunded out-of-band, or the customer asked to stop being contacted.
+`PATCH /api/customers/:id/do-not-contact` sets the flag and immediately stops any of that
+customer's attempts still sitting in `PENDING`/`AWAITING_APPROVAL` (so flipping it takes effect
+right away, not just on their next failed payment), while `STOP`/`ESCALATE` stay allowed since
+those never contact the customer automatically. Enforced in `policyEngine.ts` alongside every
+other guardrail — the AI agent and deterministic engine can still recommend `RETRY`/`PAYMENT_LINK`
+for a do-not-contact customer, but execution is always blocked at the same choke point.
+
+## Bulk approve/reject
+
+Recovery Operations supports two ways to act on many `AWAITING_APPROVAL` attempts at once, so the
+approach doesn't depend on how big the merchant's queue is:
+
+- **Checkbox selection** (`POST /api/recovery/bulk-approve` / `bulk-reject`, id list capped at 200)
+  — for picking a handful of specific rows off the current page. Runs synchronously; each id goes
+  through the exact same single-attempt approve/reject path (guardrail re-check, Razorpay call)
+  with bounded concurrency (5 in flight).
+- **"Select all N matching this filter"** (`POST /api/recovery/bulk-jobs`, no id list at all) —
+  for clearing the entire backlog regardless of size. Instead of an id list, it takes the same
+  filter (`q`/`from`/`to`) as `GET /opportunities`, resolves the match itself (capped at 5,000 per
+  job, reported back as `truncated` rather than silently dropped — running it again picks up the
+  rest), and processes it as a background job the frontend polls for progress
+  (`GET /bulk-jobs/:jobId`) — the same job-tracker pattern already used for simulations. A merchant
+  with 20 stuck items and one with 20,000 use the identical button; only the progress bar's length
+  differs.
 
 ## Idempotency
 
