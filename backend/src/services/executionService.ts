@@ -4,7 +4,17 @@ import { writeAudit } from "./auditService";
 import { createPaymentLink, createRetryOrder } from "./razorpay";
 import { evaluatePolicy } from "./policyEngine";
 import { countRecentCommunications } from "./customerStats";
-import { RECOVERY_COST, AI_COST_PER_CALL_PAISE, ESCALATION_MANUAL_RESOLUTION_RATE } from "../types";
+import { createEmiOffer, createPromisePlan } from "./emiService";
+import {
+  RECOVERY_COST,
+  AI_COST_PER_CALL_PAISE,
+  ESCALATION_MANUAL_RESOLUTION_RATE,
+  SIMULATED_RECOVERY_OPTIMISM_BOOST,
+  SIMULATED_RECOVERY_MAX_PROBABILITY,
+  SIMULATED_RECOVERY_MIN_PROBABILITY,
+  PAYMENT_LINK_FRICTION_PENALTY,
+  CUSTOMER_RESPONSE_WINDOW_DAYS,
+} from "../types";
 import { RecoveryAction, RecoveryAttempt } from "@prisma/client";
 
 export function buildIdempotencyKey(paymentId: string, attemptNumber: number, action: RecoveryAction) {
@@ -43,6 +53,25 @@ export interface ExecuteOptions {
    *  against. Defaults to real time; the simulation engine passes the backdated simulated
    *  moment instead, since its dataset spans up to 14 days built in a few real seconds. */
   asOf?: Date;
+  /** Simulation mode skips real AI calls by default — hundreds of ambiguous payments in one run
+   *  would mean hundreds of real Groq calls. This is the one deliberate exception: a single object
+   *  shared (by reference) across every payment in the batch, so a bounded sample of genuinely
+   *  ambiguous simulated payments still exercises the real AI path — otherwise Shadow Mode data
+   *  could only ever come from the hand-run demo seed script, never from simulated traffic, which
+   *  defeats the point of measuring it. Decremented in place as it's spent; once it hits 0, the
+   *  rest of the batch falls back to deterministic-only, same as before. */
+  aiEscalationBudget?: { remaining: number };
+  /** Serializes real AI calls during a simulation run (see createMutex) so up to
+   *  SIMULATION_CONCURRENCY chains can't all fire a Groq call in the same instant and get
+   *  rate-limited. Not set for live traffic — a single webhook doesn't need throttling against
+   *  itself. */
+  aiCallMutex?: { run<T>(fn: () => Promise<T>): Promise<T> };
+  /** Set only by POST /:id/retry-override, for a merchant explicitly retrying a previously-STOPPED
+   *  attempt. Bypasses the *soft* guardrails (retry limit, comms limit, quiet hours, retry spacing)
+   *  in policyEngine — never payment_state/suspicious_payment/do_not_contact, which stay enforced
+   *  regardless. Also forces a fresh human approval step no matter the amount, since overriding a
+   *  guardrail on purpose is exactly the case that should get an extra checkpoint, not fewer. */
+  retryOverride?: boolean;
 }
 
 /**
@@ -94,11 +123,19 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
     paymentStatus: payment.status,
     failureCategory: payment.failureCategory,
     isSuspicious: payment.isSuspicious,
+    doNotContact: payment.customer.doNotContact,
     communicationsInPeriod: commsInPeriod,
     minutesSinceLastAttempt,
     currentHourLocal: asOf.getHours(),
     policy,
+    bypassSoftGuardrails: opts.retryOverride,
   });
+  if (opts.retryOverride) {
+    // A guardrail-bypassing action always gets a fresh human checkpoint, whatever the amount —
+    // overriding a guardrail on purpose is exactly the case that should get an extra look, not
+    // fewer, regardless of what evaluatePolicy's own amount-limit check happened to conclude.
+    evaluation.requiresApproval = true;
+  }
 
   if (!evaluation.allowed) {
     const stopped = await prisma.recoveryAttempt.update({
@@ -141,7 +178,24 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
     return awaiting;
   }
 
-  await prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { status: "EXECUTING" } });
+  // Atomically claim the attempt right before the irreversible part (calling Razorpay and
+  // resolving a real outcome) -- found via a live data audit that two concurrent calls for the
+  // same attempt (e.g. a double-click on Approve, or a retry racing the scheduler) could both
+  // read status="PENDING"/"APPROVED" up at the top of this function before either had written
+  // "EXECUTING", both proceed independently (each its own resolveSimulatedOutcome roll), and the
+  // second writer would silently overwrite the first outcome -- including leaving payment.status
+  // stuck at CAPTURED from an earlier successful roll while the attempt itself flipped to FAILED
+  // underneath it. A conditional updateMany makes the claim atomic: only the call whose WHERE
+  // clause still matches at write time actually transitions the row, so a losing concurrent call
+  // sees 0 rows affected and returns the attempt as everyone else now sees it, instead of
+  // resolving it a second time.
+  const claim = await prisma.recoveryAttempt.updateMany({
+    where: { id: attempt.id, status: { in: ["PENDING", "APPROVED"] } },
+    data: { status: "EXECUTING" },
+  });
+  if (claim.count === 0) {
+    return prisma.recoveryAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  }
 
   let razorpayResponse: unknown = null;
   try {
@@ -213,20 +267,82 @@ export async function executeAttempt(attemptId: string, opts: ExecuteOptions = {
   if (attempt.action === "STOP") {
     return prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { status: "STOPPED", outcome: "STOPPED_BY_POLICY" } });
   }
+
+  // A promise-to-pay was logged at approval time (see POST /:id/approve) instead of resolving
+  // this ESCALATE the normal way — reuses the EMI installment-plan machinery with a single
+  // installment (see emiService.createPromisePlan). Checked before the plain-ESCALATE branches
+  // below so it takes priority regardless of simulate/live: a promise is a merchant's explicit
+  // choice on this specific attempt, not a mode default.
+  if (attempt.action === "ESCALATE" && attempt.promisedDueDate) {
+    await createPromisePlan(
+      { ...executed, payment },
+      attempt.promisedDueDate,
+      attempt.promisedAmount ?? payment.amount,
+      { rng: opts.rng },
+    );
+    return prisma.recoveryAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  }
   if (attempt.action === "ESCALATE" && !opts.simulate) {
     return executed; // live traffic: stays EXECUTED until a human resolves it out-of-band
   }
 
-  // Simulation resolves the outcome immediately (deterministic seeded probability) — including
-  // an approved ESCALATE, since there's no real customer behind a simulated payment for a human's
-  // manual follow-up to ever produce a webhook. Without this, every simulated escalation a human
-  // approves would sit at EXECUTED forever.
+  // EMI_PLAN doesn't resolve to a single win/loss the way RETRY/PAYMENT_LINK/ESCALATE do — the
+  // merchant only approved *sending an offer*, not a specific plan. createEmiOffer sends it and
+  // leaves the plan (and the attempt) at OFFERED/EXECUTED until the customer picks a tenure or
+  // the offer window expires — see emiService.resolveOfferIfDue. `backdateForDemo: opts.simulate`
+  // is what lets a freshly-simulated dataset show offers at realistic, varied stages (still
+  // waiting, already accepted at some tenure, already expired) instead of every offer being
+  // brand new.
+  if (attempt.action === "EMI_PLAN") {
+    await createEmiOffer({ ...executed, payment }, { backdateForDemo: !!opts.simulate, rng: opts.rng });
+    return prisma.recoveryAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  }
+
+  // PAYMENT_LINK and a plain ESCALATE (no promise) both depend on someone else actually acting —
+  // the customer clicking the link, or a human's follow-up landing — so deciding won/lost the
+  // instant the action is sent is dishonest about timing, even in simulation. Let them sit as
+  // "still recovering" for CUSTOMER_RESPONSE_WINDOW_DAYS first, same as a real payment link would.
+  // RETRY resolves immediately below (deliberately excluded — see the constant's own doc).
+  if (opts.simulate && (attempt.action === "PAYMENT_LINK" || attempt.action === "ESCALATE")) {
+    return resolveOrAwaitCustomerResponse(executed, opts.rng ?? Math.random);
+  }
+
+  // Simulation resolves the outcome immediately (deterministic seeded probability) — this is now
+  // only RETRY, which really does resolve near-instantly via the bank in real life.
   if (opts.simulate) {
     return resolveSimulatedOutcome(executed, opts.rng ?? Math.random);
   }
 
-  // Live mode: outcome resolves later via webhook (order.paid / payment.captured).
+  // Live mode: outcome resolves later via webhook (order.paid / payment.captured), or via a human
+  // manually resolving an escalation (POST /:id/resolve).
   return executed;
+}
+
+/**
+ * If the customer-response window (from the attempt's own createdAt — already backdated for
+ * simulated bulk data, same as every other date in this dataset) has already passed by real
+ * "now", resolve it right away — this is what makes a freshly-generated simulation show a
+ * realistic mix of still-waiting and already-decided payment links/escalations instead of every
+ * one starting fresh. Otherwise, record when to check back (scheduler.ts scans for this) and
+ * leave the attempt at EXECUTED — genuinely still recovering, not yet won or lost.
+ */
+async function resolveOrAwaitCustomerResponse(attempt: RecoveryAttempt, rng: () => number) {
+  const respondBy = new Date(attempt.createdAt.getTime() + CUSTOMER_RESPONSE_WINDOW_DAYS * 24 * 3600 * 1000);
+  if (new Date() < respondBy) {
+    return prisma.recoveryAttempt.update({ where: { id: attempt.id }, data: { scheduledFor: respondBy } });
+  }
+  return resolveSimulatedOutcome(attempt, rng);
+}
+
+/**
+ * Scheduler entry point: a simulated PAYMENT_LINK/ESCALATE attempt whose customer-response
+ * window has now passed (scheduledFor <= now) gets decided — same probability model as any
+ * other simulated outcome, just delayed until a realistic amount of time has actually gone by.
+ */
+export async function resolveDueCustomerResponse(attemptId: string, rng: () => number = Math.random) {
+  const attempt = await prisma.recoveryAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+  if (attempt.status !== "EXECUTED") return attempt; // already resolved or moved on — nothing to do
+  return resolveSimulatedOutcome(attempt, rng);
 }
 
 async function performAction(
@@ -277,6 +393,16 @@ async function finalizeOutcome(
   succeeded: boolean,
   extraAudit?: Record<string, unknown>,
 ) {
+  // Defense-in-depth idempotency: refuse to re-resolve an attempt that's already terminal. The
+  // real fix for how this could happen at all is executeAttempt's atomic claim above, but
+  // resolveLiveOutcome and resolveEscalation both also read-then-call this function without their
+  // own atomic claim (a duplicate/out-of-order webhook, or a double click on "Mark Recovered"),
+  // so this is a second, independent backstop against the same class of double-resolution that
+  // corrupted real data before the claim fix existed -- see git history for the incident.
+  if (attempt.status === "SUCCEEDED" || attempt.status === "FAILED") {
+    return attempt;
+  }
+
   const cost = RECOVERY_COST[attempt.action] + (attempt.usedAI ? AI_COST_PER_CALL_PAISE : 0);
   const revenueRecovered = succeeded ? payment.amount : 0;
   const netRecovered = revenueRecovered - cost;
@@ -315,14 +441,27 @@ async function finalizeOutcome(
 
 async function resolveSimulatedOutcome(attempt: RecoveryAttempt, rng: () => number) {
   const payment = await prisma.payment.findUniqueOrThrow({ where: { id: attempt.paymentId } });
-  // Recovery score IS the probability estimate for automated RETRY/PAYMENT_LINK — that's the
-  // entire point of computing it. ESCALATE is different: its score is deliberately forced to 0
-  // (never auto-recover a suspicious payment), so it can't double as a probability here — that
-  // would mean every approved escalation fails by construction. Its outcome instead models a
-  // human manually following up after approval; ESCALATION_MANUAL_RESOLUTION_RATE is a flat,
-  // documented assumption for that manual-resolution success rate, not derived from the score.
+  // Recovery score IS the base probability estimate — that's the entire point of computing it —
+  // but RETRY and PAYMENT_LINK don't get the same adjustment on top of it anymore, because
+  // they're not the same mechanism. RETRY is a frictionless automatic charge, so it keeps the
+  // optimism boost (transient-failure self-resolution the raw score doesn't capture). PAYMENT_LINK
+  // requires the customer to notice, open, and manually complete it — real dunning data says that
+  // converts substantially worse than an auto-charge at the same risk level, so it carries a flat
+  // friction penalty instead of a boost (see PAYMENT_LINK_FRICTION_PENALTY in types.ts). Neither
+  // touches the recovery score itself or the RETRY/PAYMENT_LINK/STOP decision upstream in
+  // decisionEngine.ts — only this simulated dice roll. ESCALATE is different again: its score is
+  // deliberately forced to 0 (never auto-recover a suspicious payment), so it can't double as a
+  // probability here — that would mean every approved escalation fails by construction. Its
+  // outcome instead models a human manually following up after approval;
+  // ESCALATION_MANUAL_RESOLUTION_RATE is a flat, documented assumption for that manual-resolution
+  // success rate, not derived from score.
+  const baseRate = (payment.recoveryScore ?? 30) / 100;
   const probability =
-    attempt.action === "ESCALATE" ? ESCALATION_MANUAL_RESOLUTION_RATE : (payment.recoveryScore ?? 30) / 100;
+    attempt.action === "ESCALATE"
+      ? ESCALATION_MANUAL_RESOLUTION_RATE
+      : attempt.action === "PAYMENT_LINK"
+        ? Math.max(SIMULATED_RECOVERY_MIN_PROBABILITY, baseRate - PAYMENT_LINK_FRICTION_PENALTY)
+        : Math.min(SIMULATED_RECOVERY_MAX_PROBABILITY, baseRate + SIMULATED_RECOVERY_OPTIMISM_BOOST);
   const succeeded = rng() < probability;
   return finalizeOutcome(attempt, payment, succeeded);
 }

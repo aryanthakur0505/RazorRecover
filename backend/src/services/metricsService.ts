@@ -113,6 +113,64 @@ export async function getAttemptOutcomeBreakdown(merchantId: string) {
   return { succeeded, failed };
 }
 
+export interface OutcomeFunnel {
+  totalFailedCount: number;
+  totalFailedAmount: number;
+  attemptedCount: number;
+  attemptedAmount: number;
+  recoveredCount: number;
+  recoveredAmount: number;
+}
+
+/**
+ * "Revenue Recovered ÷ Revenue at Risk" looks small mainly because most failed-payment revenue
+ * was never actually pursued — the engine correctly declined to spend communication/API budget on
+ * low-probability leads. That's a deliberate filter, not a recovery failure, and conflating the two
+ * makes a healthy recovery engine look weak. This gives the three real stages instead:
+ *
+ *   1. Total Failed — every payment that ever failed, regardless of what happened to it since.
+ *      Note this deliberately does NOT filter by Payment.status="FAILED": a payment that was later
+ *      recovered flips to CAPTURED, and excluding those would make the funnel's own "recovered"
+ *      stage disappear from the "total" stage it's supposed to be a slice of.
+ *   2. Attempted — of those, the ones where at least one attempt actually went beyond STOPPED
+ *      (guardrail/score blocked) or REJECTED (merchant declined before execution) — i.e. a real
+ *      action was taken or is in flight, not just decided-against.
+ *   3. Recovered — of those, the ones where an attempt actually succeeded.
+ *
+ * The honest recovery rate is stage 3 ÷ stage 2, not stage 3 ÷ stage 1.
+ */
+export async function getOutcomeFunnel(merchantId: string): Promise<OutcomeFunnel> {
+  const [everFailed, attempted, recovered] = await Promise.all([
+    prisma.payment.findMany({
+      where: { merchantId, failureCategory: { not: "NONE" } },
+      select: { amount: true },
+    }),
+    prisma.payment.findMany({
+      where: {
+        merchantId,
+        failureCategory: { not: "NONE" },
+        attempts: { some: { status: { notIn: ["STOPPED", "REJECTED"] } } },
+      },
+      select: { amount: true },
+    }),
+    prisma.payment.findMany({
+      where: { merchantId, failureCategory: { not: "NONE" }, attempts: { some: { status: "SUCCEEDED" } } },
+      select: { amount: true },
+    }),
+  ]);
+
+  const sum = (rows: { amount: number }[]) => rows.reduce((s, p) => s + p.amount, 0);
+
+  return {
+    totalFailedCount: everFailed.length,
+    totalFailedAmount: sum(everFailed),
+    attemptedCount: attempted.length,
+    attemptedAmount: sum(attempted),
+    recoveredCount: recovered.length,
+    recoveredAmount: sum(recovered),
+  };
+}
+
 interface ShadowDecision {
   action: RecoveryAction;
   confidence: number;
@@ -191,7 +249,13 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
     // blip, invalid test data, etc.) lands the attempt at FAILED/API_ERROR too, but that's not a
     // fair reflection of whether the *recommendation* was good, so it doesn't count as "resolved"
     // here (unlike the dashboard's broader recovery-rate metrics, which don't distinguish this).
-    const isResolved = a.status === "SUCCEEDED" || (a.status === "FAILED" && a.outcome === "NOT_RECOVERED");
+    // STOPPED counts as resolved too — it's a terminal, certain ₹0 (nothing was ever attempted,
+    // and never will be), not an outcome still awaiting resolution. Without this, every AI-chosen
+    // STOP showed as "pending" forever, which is wrong in the opposite direction of API_ERROR:
+    // that one's a real outcome miscounted as resolved, this one's a certain outcome miscounted as
+    // unresolved.
+    const isResolved =
+      a.status === "SUCCEEDED" || a.status === "STOPPED" || (a.status === "FAILED" && a.outcome === "NOT_RECOVERED");
     const actualNetRecovered = isResolved ? (a.netRecovered ?? 0) : null;
     const estimatedShadowNet = agreed
       ? actualNetRecovered // identical action taken -> the real outcome IS the shadow outcome
@@ -249,5 +313,87 @@ export async function getAIShadowComparison(merchantId: string): Promise<{
     revenueFoundByAI,
     casesFoundByAI: foundByAI.length,
     rows: sortedRows,
+  };
+}
+
+export interface ConfidenceBucket {
+  label: string;
+  min: number;
+  max: number;
+  count: number;
+  avgStatedConfidence: number | null;
+  actualSuccessRate: number | null;
+}
+
+export interface AIConfidenceCalibration {
+  totalResolved: number;
+  buckets: ConfidenceBucket[];
+  avgConfidenceWhenSucceeded: number | null;
+  avgConfidenceWhenFailed: number | null;
+}
+
+// Bucket boundaries deliberately line up with the one place confidence_score actually does
+// something in this app (recoveryOrchestrator's `< 0.6` LOW_AI_CONFIDENCE approval gate), rather
+// than arbitrary round numbers — so "Under 60%" here means exactly the same population as the
+// cases that already required human approval for low confidence.
+const CONFIDENCE_BUCKETS = [
+  { label: "Under 60%", min: 0, max: 0.6 },
+  { label: "60–85%", min: 0.6, max: 0.85 },
+  { label: "85–100%", min: 0.85, max: 1.01 }, // 1.01 so a stated 1.0 falls inside, not excluded
+];
+
+/**
+ * Checks whether the AI's own self-reported confidence_score means anything, instead of just
+ * trusting that it does. The model is told nothing more than "0-1 confidence in this
+ * recommendation" (schemas/ai.ts) — no rubric, no calibration requirement — so there's no reason
+ * to assume a stated 90% actually succeeds more often than a stated 30% until it's checked against
+ * real outcomes.
+ *
+ * Scoped to non-STOP, resolved attempts only: a STOP has nothing to measure against (nothing was
+ * attempted, so there's no real success/failure to compare its confidence to — same reason STOP is
+ * excluded from the AI-vs-engine shadow comparison), and an unresolved attempt has no outcome yet
+ * to check the stated confidence against either.
+ */
+export async function getAIConfidenceCalibration(merchantId: string): Promise<AIConfidenceCalibration> {
+  const attempts = await prisma.recoveryAttempt.findMany({
+    where: { merchantId, usedAI: true, action: { not: "STOP" } },
+    select: { status: true, outcome: true, aiOutput: true },
+  });
+
+  const resolved = attempts
+    .map((a) => ({
+      confidence: (a.aiOutput as { confidence_score?: number } | null)?.confidence_score,
+      succeeded: a.status === "SUCCEEDED",
+      isResolved: a.status === "SUCCEEDED" || (a.status === "FAILED" && a.outcome === "NOT_RECOVERED"),
+    }))
+    .filter(
+      (a): a is { confidence: number; succeeded: boolean; isResolved: true } =>
+        a.isResolved && typeof a.confidence === "number",
+    );
+
+  const buckets: ConfidenceBucket[] = CONFIDENCE_BUCKETS.map((b) => {
+    const inBucket = resolved.filter((r) => r.confidence >= b.min && r.confidence < b.max);
+    const successes = inBucket.filter((r) => r.succeeded).length;
+    return {
+      label: b.label,
+      min: b.min,
+      max: b.max,
+      count: inBucket.length,
+      avgStatedConfidence:
+        inBucket.length > 0 ? inBucket.reduce((sum, r) => sum + r.confidence, 0) / inBucket.length : null,
+      actualSuccessRate: inBucket.length > 0 ? successes / inBucket.length : null,
+    };
+  });
+
+  const succeededGroup = resolved.filter((r) => r.succeeded);
+  const failedGroup = resolved.filter((r) => !r.succeeded);
+  const avg = (rows: typeof resolved) =>
+    rows.length > 0 ? rows.reduce((sum, r) => sum + r.confidence, 0) / rows.length : null;
+
+  return {
+    totalResolved: resolved.length,
+    buckets,
+    avgConfidenceWhenSucceeded: avg(succeededGroup),
+    avgConfidenceWhenFailed: avg(failedGroup),
   };
 }

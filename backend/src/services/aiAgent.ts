@@ -4,7 +4,15 @@ import { env } from "../env";
 import { toolImplementations, ToolName } from "./aiTools";
 import { aiRecommendationJsonSchema, aiRecommendationSchema, AIRecommendation } from "../schemas/ai";
 
-const client = env.aiEnabled ? new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: env.GROQ_BASE_URL }) : null;
+// No retries here on purpose: the simulation engine already serializes its real AI calls
+// (aiCallMutex) specifically to avoid a self-inflicted burst against Groq's rate limit, and
+// retry+backoff compounds badly with that serialization — one rate-limited call backing off would
+// block every AI call queued behind it. A short explicit timeout bounds how long a single stuck
+// call can hang for; a failed/timed-out call just falls back to AI_UNAVAILABLE, which is the
+// existing, already-correct fallback path.
+const client = env.aiEnabled
+  ? new OpenAI({ apiKey: env.GROQ_API_KEY, baseURL: env.GROQ_BASE_URL, maxRetries: 0, timeout: 15000 })
+  : null;
 
 const TOOL_DEFS: ChatCompletionTool[] = [
   {

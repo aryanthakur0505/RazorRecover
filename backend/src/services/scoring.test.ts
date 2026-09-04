@@ -54,16 +54,25 @@ describe("calculateRecoveryScore", () => {
     expect(good.score).toBeGreaterThan(bad.score);
   });
 
-  it("penalizes each prior recovery attempt, capped at -30", () => {
-    // previousRecoverySuccesses = previousRecoveryAttempts (perfect history) holds the separate
-    // historical-success-rate factor constant at +10, isolating just the per-attempt penalty.
-    const one = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 1, previousRecoverySuccesses: 1 } });
-    const four = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 4, previousRecoverySuccesses: 4 } });
-    const ten = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 10, previousRecoverySuccesses: 10 } });
+  it("penalizes each prior recovery attempt (repeated_attempts_on_payment), capped at -12", () => {
+    // NEW_CUSTOMER has 0 total payments, so customer_track_record is skipped entirely (see the
+    // `totalPayments > 0` guard in scoring.ts) -- this isolates just the per-attempt penalty.
+    const one = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 1 } });
+    const three = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 3 } });
+    const ten = score({ stats: { ...NEW_CUSTOMER, previousRecoveryAttempts: 10 } });
     // baseline (0 prior attempts) for TEMPORARY_FAILURE @ hoursSinceFailure=4 is 80
-    expect(one.score).toBe(80); // -10 capped penalty, +10 perfect-history bonus cancels out
-    expect(four.score).toBe(60); // -30 (would be -40 uncapped) +10
-    expect(ten.score).toBe(60); // still capped at -30, same as four
+    expect(one.score).toBe(76); // -4 (1 attempt)
+    expect(three.score).toBe(68); // -12 (3 attempts, exactly at the cap: 4*3)
+    expect(ten.score).toBe(68); // still capped at -12, same as three
+  });
+
+  it("caps customer_track_record at ±18", () => {
+    const perfect = score({ stats: { ...NEW_CUSTOMER, totalSuccessfulPayments: 20, totalFailedPayments: 0 } });
+    const terrible = score({ stats: { ...NEW_CUSTOMER, totalSuccessfulPayments: 0, totalFailedPayments: 20 } });
+    // baseline 80; successRate 1.0 -> impact = round((1 - 0.5) * 36) = 18, capped at 18
+    expect(perfect.score).toBe(98);
+    // successRate 0.0 -> impact = round((0 - 0.5) * 36) = -18, capped at -18
+    expect(terrible.score).toBe(62);
   });
 
   it("applies the correct time-decay band for every documented threshold", () => {

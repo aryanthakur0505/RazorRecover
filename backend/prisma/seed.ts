@@ -17,14 +17,19 @@ async function main() {
     await prisma.recoveryPolicy.create({
       data: {
         merchantId: merchant.id,
-        maxRetries: 3,
+        maxRetries: 5,
         maxAutoRecoveryAmount: 500000, // ₹5,000
         maxCommunicationsPerPeriod: 2,
         communicationPeriodHours: 72,
-        quietHoursStart: 22,
+        // Matches RBI's Fair Practices Code for recovery contact: agents/automated messages are
+        // only allowed 8 AM-7 PM, not up to 10 PM -- calling/messaging after 7 PM is a real
+        // violation, not just bad manners.
+        quietHoursStart: 19,
         quietHoursEnd: 8,
         minRetryIntervalMinutes: 60,
-        retryDelayMinutes: [0, 360, 1440],
+        // Evenly spaced every 2 days (0, 2d, 4d, 6d, 8d) instead of a couple of big jumps then
+        // giving up — see schema.prisma's RecoveryPolicy.retryDelayMinutes for the full reasoning.
+        retryDelayMinutes: [0, 2880, 5760, 8640, 11520],
       },
     });
     console.log("Created default recovery policy.");

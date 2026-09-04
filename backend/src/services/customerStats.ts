@@ -67,3 +67,27 @@ export async function countRecentCommunications(
     },
   });
 }
+
+/**
+ * When a customer stopped on the communication limit will next be eligible for another
+ * automatic attempt — the moment the OLDEST communication inside the current window ages out of
+ * it, which is exactly what drops countRecentCommunications below the cap. Null if there's
+ * nothing currently in the window (shouldn't happen for a payment actually stopped on this rule,
+ * but a payment scanned a little late after the window already rolled off naturally has nothing
+ * left to compute from — safe to treat as "eligible now").
+ */
+export async function nextEligibleCommunicationAt(
+  customerId: string,
+  merchantId: string,
+  periodHours: number,
+  asOf: Date = new Date(),
+): Promise<Date | null> {
+  const since = new Date(asOf.getTime() - periodHours * 60 * 60 * 1000);
+  const oldestInWindow = await prisma.recoveryAttempt.findFirst({
+    where: { merchantId, action: "PAYMENT_LINK", createdAt: { gte: since }, payment: { customerId } },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
+  });
+  if (!oldestInWindow) return null;
+  return new Date(oldestInWindow.createdAt.getTime() + periodHours * 60 * 60 * 1000);
+}

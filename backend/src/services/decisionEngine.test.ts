@@ -24,6 +24,7 @@ function input(overrides: Partial<DecisionInput> = {}): DecisionInput {
     amount: 50000,
     attemptNumber: 1,
     policy: POLICY,
+    hasPriorEmiOffer: false,
     ...overrides,
   };
 }
@@ -55,13 +56,35 @@ describe("decideDeterministic", () => {
     expect(result.approvalReason).toBe("AMOUNT_EXCEEDS_AUTO_LIMIT");
   });
 
+  it("offers an EMI_PLAN for a large INSUFFICIENT_FUNDS payment with no prior offer", () => {
+    const result = decideDeterministic(
+      input({ category: "INSUFFICIENT_FUNDS", amount: 600000, score: { score: 40, factors: [] } }),
+    );
+    expect(result.action).toBe("EMI_PLAN");
+  });
+
+  it("does NOT re-offer EMI_PLAN once this payment already has one -- falls through to the normal score path instead (InstallmentPlan.paymentId is unique, a second offer would crash)", () => {
+    const result = decideDeterministic(
+      input({
+        category: "INSUFFICIENT_FUNDS",
+        amount: 600000,
+        score: { score: 40, factors: [] },
+        hasPriorEmiOffer: true,
+      }),
+    );
+    expect(result.action).not.toBe("EMI_PLAN");
+    expect(result.action).toBe("PAYMENT_LINK"); // score 40 falls in the normal 10-49 PAYMENT_LINK band
+  });
+
   it("sends a PAYMENT_LINK for a moderate score", () => {
     const result = decideDeterministic(input({ score: { score: 40, factors: [] } }));
     expect(result.action).toBe("PAYMENT_LINK");
   });
 
   it("STOPs a low-scoring payment", () => {
-    const result = decideDeterministic(input({ score: { score: 10, factors: [] } }));
+    // Below 10 is the only band judged too low-odds to spend an attempt on — 10 itself is still
+    // PAYMENT_LINK (see "sends a PAYMENT_LINK for a moderate score" above and decisionEngine.ts).
+    const result = decideDeterministic(input({ score: { score: 5, factors: [] } }));
     expect(result.action).toBe("STOP");
     expect(result.requiresApproval).toBe(false);
   });

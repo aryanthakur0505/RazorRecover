@@ -45,41 +45,37 @@ export function calculateRecoveryScore(input: ScoringInput): ScoreResult {
     detail: `Base score for ${input.category} failures.`,
   });
 
-  // Customer history: reward customers with a track record of paying successfully.
+  // Customer history: reward customers with a track record of paying successfully. This used to
+  // be THREE separate factors (customer_success_rate, previous_recovery_attempts,
+  // historical_recovery_success_rate) that all penalized the same underlying signal -- "this
+  // customer has failed before" -- from slightly different angles, and stacked on top of each
+  // other. A customer with just 2 prior failures and zero successes could rack up -45 across the
+  // three, enough to zero out a decent base score by itself. Consolidated into two factors that
+  // each carry a distinct, non-overlapping signal, with a combined cap around -30 (was -45+):
+  //   - customer_track_record: their overall payment success rate -- the primary trust signal.
+  //   - repeated_attempts_on_payment: a smaller, separate penalty for diminishing returns on
+  //     retrying when several attempts have already been made -- capped much lower than before,
+  //     since customer_track_record already captures most of "this customer often fails".
   const { totalSuccessfulPayments, totalFailedPayments } = input.stats;
   const totalPayments = totalSuccessfulPayments + totalFailedPayments;
   if (totalPayments > 0) {
     const successRate = totalSuccessfulPayments / totalPayments;
-    const impact = Math.round((successRate - 0.5) * 30); // -15..+15
+    const impact = Math.max(-18, Math.min(18, Math.round((successRate - 0.5) * 36))); // -18..+18
     score += impact;
     factors.push({
-      factor: "customer_success_rate",
+      factor: "customer_track_record",
       impact,
       detail: `Customer has succeeded on ${(successRate * 100).toFixed(0)}% of ${totalPayments} past payments.`,
     });
   }
 
-  // Previous recovery attempts on this same payment / customer: each failed prior attempt
-  // is a signal the easy wins are already exhausted.
   if (input.stats.previousRecoveryAttempts > 0) {
-    const impact = -Math.min(10 * input.stats.previousRecoveryAttempts, 30);
+    const impact = -Math.min(4 * input.stats.previousRecoveryAttempts, 12); // 0..-12
     score += impact;
     factors.push({
-      factor: "previous_recovery_attempts",
+      factor: "repeated_attempts_on_payment",
       impact,
-      detail: `${input.stats.previousRecoveryAttempts} prior recovery attempt(s) already made.`,
-    });
-  }
-
-  // Historical recovery success rate for this customer specifically.
-  if (input.stats.previousRecoveryAttempts > 0) {
-    const rate = input.stats.previousRecoverySuccesses / input.stats.previousRecoveryAttempts;
-    const impact = Math.round((rate - 0.5) * 20); // -10..+10
-    score += impact;
-    factors.push({
-      factor: "historical_recovery_success_rate",
-      impact,
-      detail: `${(rate * 100).toFixed(0)}% of this customer's past recovery attempts succeeded.`,
+      detail: `${input.stats.previousRecoveryAttempts} prior recovery attempt(s) already made — diminishing returns on trying again.`,
     });
   }
 

@@ -24,6 +24,7 @@ function evalInput(overrides: Partial<PolicyEvalInput> = {}): PolicyEvalInput {
     paymentStatus: "FAILED",
     failureCategory: "TEMPORARY_FAILURE",
     isSuspicious: false,
+    doNotContact: false,
     communicationsInPeriod: 0,
     minutesSinceLastAttempt: null,
     currentHourLocal: 12, // clear of quiet hours (22:00-08:00)
@@ -67,6 +68,25 @@ describe("evaluatePolicy — suspicious payments", () => {
   it("always allows STOP and ESCALATE regardless of suspicion", () => {
     expect(evaluatePolicy(evalInput({ action: "STOP", isSuspicious: true })).allowed).toBe(true);
     expect(evaluatePolicy(evalInput({ action: "ESCALATE", isSuspicious: true })).allowed).toBe(true);
+  });
+});
+
+describe("evaluatePolicy — do-not-contact list", () => {
+  it("blocks RETRY for a do-not-contact customer", () => {
+    const result = evaluatePolicy(evalInput({ action: "RETRY", doNotContact: true }));
+    expect(result.allowed).toBe(false);
+    expect(result.stopReason).toBe("DO_NOT_CONTACT");
+  });
+
+  it("blocks PAYMENT_LINK for a do-not-contact customer", () => {
+    const result = evaluatePolicy(evalInput({ action: "PAYMENT_LINK", doNotContact: true }));
+    expect(result.allowed).toBe(false);
+    expect(result.stopReason).toBe("DO_NOT_CONTACT");
+  });
+
+  it("always allows STOP and ESCALATE regardless of do-not-contact", () => {
+    expect(evaluatePolicy(evalInput({ action: "STOP", doNotContact: true })).allowed).toBe(true);
+    expect(evaluatePolicy(evalInput({ action: "ESCALATE", doNotContact: true })).allowed).toBe(true);
   });
 });
 
@@ -171,5 +191,60 @@ describe("evaluatePolicy — STOP/ESCALATE bypass action-specific guardrails", (
     );
     expect(result.allowed).toBe(true);
     expect(result.requiresApproval).toBe(false);
+  });
+});
+
+describe("evaluatePolicy — bypassSoftGuardrails (merchant 'Retry Anyway' override)", () => {
+  it("lets a RETRY through past the retry limit when bypassed", () => {
+    const result = evaluatePolicy(
+      evalInput({ action: "RETRY", attemptNumber: POLICY.maxRetries + 1, bypassSoftGuardrails: true }),
+    );
+    expect(result.allowed).toBe(true);
+    expect(result.checks.find((c) => c.rule === "retry_limit")?.detail).toContain("overrode");
+  });
+
+  it("lets a PAYMENT_LINK through past the communication limit when bypassed", () => {
+    const result = evaluatePolicy(
+      evalInput({
+        action: "PAYMENT_LINK",
+        communicationsInPeriod: POLICY.maxCommunicationsPerPeriod,
+        bypassSoftGuardrails: true,
+      }),
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  it("lets a RETRY through during quiet hours when bypassed", () => {
+    const result = evaluatePolicy(evalInput({ action: "RETRY", currentHourLocal: 23, bypassSoftGuardrails: true }));
+    expect(result.allowed).toBe(true);
+  });
+
+  it("lets a RETRY through the minimum spacing check when bypassed", () => {
+    const result = evaluatePolicy(
+      evalInput({
+        action: "RETRY",
+        minutesSinceLastAttempt: POLICY.minRetryIntervalMinutes - 1,
+        bypassSoftGuardrails: true,
+      }),
+    );
+    expect(result.allowed).toBe(true);
+  });
+
+  it("never bypasses payment_state — an already-captured payment stays blocked regardless", () => {
+    const result = evaluatePolicy(evalInput({ paymentStatus: "CAPTURED", bypassSoftGuardrails: true }));
+    expect(result.allowed).toBe(false);
+    expect(result.stopReason).toBe("PAYMENT_ALREADY_RESOLVED");
+  });
+
+  it("never bypasses suspicious_payment — a flagged payment stays blocked regardless", () => {
+    const result = evaluatePolicy(evalInput({ action: "RETRY", isSuspicious: true, bypassSoftGuardrails: true }));
+    expect(result.allowed).toBe(false);
+    expect(result.stopReason).toBe("SUSPICIOUS_PAYMENT");
+  });
+
+  it("never bypasses do_not_contact — an excluded customer stays blocked regardless", () => {
+    const result = evaluatePolicy(evalInput({ action: "PAYMENT_LINK", doNotContact: true, bypassSoftGuardrails: true }));
+    expect(result.allowed).toBe(false);
+    expect(result.stopReason).toBe("DO_NOT_CONTACT");
   });
 });

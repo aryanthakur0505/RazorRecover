@@ -17,10 +17,19 @@ export interface PolicyEvalInput {
   paymentStatus: PaymentStatus;
   failureCategory: FailureCategory;
   isSuspicious: boolean;
+  doNotContact: boolean; // merchant-set exclude flag on the customer — never auto-contacted
   communicationsInPeriod: number; // count of PAYMENT_LINK/contact actions already sent in window
   minutesSinceLastAttempt: number | null;
   currentHourLocal: number; // 0-23
   policy: RecoveryPolicy;
+  /** Set only by an explicit merchant "Retry Anyway" override on a previously-STOPPED attempt —
+   *  a human judgment call let through past the *timing/volume* guardrails (retry limit, comms
+   *  limit, quiet hours, retry spacing), which a merchant might reasonably know better than the
+   *  policy defaults for one specific case. Never bypasses payment_state, suspicious_payment, or
+   *  do_not_contact — those aren't about timing or volume, they're either "there's nothing to
+   *  recover" or a safety boundary the merchant set deliberately elsewhere, and this isn't the
+   *  place to undo either of those. */
+  bypassSoftGuardrails?: boolean;
 }
 
 export function evaluatePolicy(input: PolicyEvalInput): PolicyEvaluation {
@@ -61,15 +70,37 @@ export function evaluatePolicy(input: PolicyEvalInput): PolicyEvaluation {
     stopReason = "SUSPICIOUS_PAYMENT";
   }
 
+  // 2b. Do-not-contact rule — merchant has explicitly excluded this customer (fraud, already
+  //     refunded, or asked not to be contacted again). Same shape as the suspicious-payment rule:
+  //     STOP/ESCALATE stay allowed (ESCALATE is a human review, not an automatic message), only
+  //     automatic RETRY/PAYMENT_LINK are forbidden.
+  const doNotContactOk =
+    input.action === "STOP" || input.action === "ESCALATE" ? true : !input.doNotContact;
+  checks.push({
+    rule: "do_not_contact",
+    passed: doNotContactOk,
+    detail: doNotContactOk
+      ? "Customer is not on the do-not-contact list."
+      : "Customer is on the do-not-contact list — automatic RETRY/PAYMENT_LINK is forbidden.",
+  });
+  if (!doNotContactOk) {
+    allowed = false;
+    stopReason = "DO_NOT_CONTACT";
+  }
+
   // 3. Retry limit
   if (input.action === "RETRY") {
-    const withinRetryLimit = input.attemptNumber <= input.policy.maxRetries;
+    const withinRetryLimit =
+      input.bypassSoftGuardrails || input.attemptNumber <= input.policy.maxRetries;
     checks.push({
       rule: "retry_limit",
       passed: withinRetryLimit,
-      detail: withinRetryLimit
-        ? `Attempt ${input.attemptNumber} of ${input.policy.maxRetries} allowed retries.`
-        : `Attempt ${input.attemptNumber} exceeds max retries (${input.policy.maxRetries}).`,
+      detail:
+        input.bypassSoftGuardrails && input.attemptNumber > input.policy.maxRetries
+          ? `Attempt ${input.attemptNumber} exceeds max retries (${input.policy.maxRetries}), but a merchant explicitly overrode this.`
+          : withinRetryLimit
+            ? `Attempt ${input.attemptNumber} of ${input.policy.maxRetries} allowed retries.`
+            : `Attempt ${input.attemptNumber} exceeds max retries (${input.policy.maxRetries}).`,
     });
     if (!withinRetryLimit) {
       allowed = false;
@@ -95,13 +126,17 @@ export function evaluatePolicy(input: PolicyEvalInput): PolicyEvaluation {
 
   // 5. Communication limit
   if (input.action === "PAYMENT_LINK") {
-    const withinCommsLimit = input.communicationsInPeriod < input.policy.maxCommunicationsPerPeriod;
+    const withinCommsLimit =
+      input.bypassSoftGuardrails || input.communicationsInPeriod < input.policy.maxCommunicationsPerPeriod;
     checks.push({
       rule: "communication_limit",
       passed: withinCommsLimit,
-      detail: withinCommsLimit
-        ? `${input.communicationsInPeriod}/${input.policy.maxCommunicationsPerPeriod} communications sent in the last ${input.policy.communicationPeriodHours}h.`
-        : `Communication limit reached (${input.communicationsInPeriod}/${input.policy.maxCommunicationsPerPeriod} in ${input.policy.communicationPeriodHours}h).`,
+      detail:
+        input.bypassSoftGuardrails && input.communicationsInPeriod >= input.policy.maxCommunicationsPerPeriod
+          ? `Communication limit reached (${input.communicationsInPeriod}/${input.policy.maxCommunicationsPerPeriod} in ${input.policy.communicationPeriodHours}h), but a merchant explicitly overrode this.`
+          : withinCommsLimit
+            ? `${input.communicationsInPeriod}/${input.policy.maxCommunicationsPerPeriod} communications sent in the last ${input.policy.communicationPeriodHours}h.`
+            : `Communication limit reached (${input.communicationsInPeriod}/${input.policy.maxCommunicationsPerPeriod} in ${input.policy.communicationPeriodHours}h).`,
     });
     if (!withinCommsLimit) {
       allowed = false;
@@ -116,14 +151,18 @@ export function evaluatePolicy(input: PolicyEvalInput): PolicyEvaluation {
       input.policy.quietHoursStart,
       input.policy.quietHoursEnd,
     );
+    const quietHoursOk = input.bypassSoftGuardrails || !inQuietHours;
     checks.push({
       rule: "quiet_hours",
-      passed: !inQuietHours,
-      detail: inQuietHours
-        ? `Current hour ${input.currentHourLocal}:00 falls within quiet hours (${input.policy.quietHoursStart}:00-${input.policy.quietHoursEnd}:00) — action deferred.`
-        : `Current hour ${input.currentHourLocal}:00 is outside quiet hours.`,
+      passed: quietHoursOk,
+      detail:
+        input.bypassSoftGuardrails && inQuietHours
+          ? `Current hour ${input.currentHourLocal}:00 falls within quiet hours (${input.policy.quietHoursStart}:00-${input.policy.quietHoursEnd}:00), but a merchant explicitly overrode this.`
+          : inQuietHours
+            ? `Current hour ${input.currentHourLocal}:00 falls within quiet hours (${input.policy.quietHoursStart}:00-${input.policy.quietHoursEnd}:00) — action deferred.`
+            : `Current hour ${input.currentHourLocal}:00 is outside quiet hours.`,
     });
-    if (inQuietHours) {
+    if (!quietHoursOk) {
       allowed = false;
       stopReason = "QUIET_HOURS";
     }
@@ -131,13 +170,17 @@ export function evaluatePolicy(input: PolicyEvalInput): PolicyEvaluation {
 
   // 7. Minimum retry interval — don't hammer the customer/issuer back-to-back.
   if (input.action === "RETRY" && input.minutesSinceLastAttempt !== null) {
-    const spacingOk = input.minutesSinceLastAttempt >= input.policy.minRetryIntervalMinutes;
+    const spacingOk =
+      input.bypassSoftGuardrails || input.minutesSinceLastAttempt >= input.policy.minRetryIntervalMinutes;
     checks.push({
       rule: "min_retry_interval",
       passed: spacingOk,
-      detail: spacingOk
-        ? `${input.minutesSinceLastAttempt}min since last attempt (min ${input.policy.minRetryIntervalMinutes}min).`
-        : `Only ${input.minutesSinceLastAttempt}min since last attempt — must wait ${input.policy.minRetryIntervalMinutes}min.`,
+      detail:
+        input.bypassSoftGuardrails && input.minutesSinceLastAttempt < input.policy.minRetryIntervalMinutes
+          ? `Only ${input.minutesSinceLastAttempt}min since last attempt (min ${input.policy.minRetryIntervalMinutes}min), but a merchant explicitly overrode this.`
+          : spacingOk
+            ? `${input.minutesSinceLastAttempt}min since last attempt (min ${input.policy.minRetryIntervalMinutes}min).`
+            : `Only ${input.minutesSinceLastAttempt}min since last attempt — must wait ${input.policy.minRetryIntervalMinutes}min.`,
     });
     if (!spacingOk) {
       allowed = false;

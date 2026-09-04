@@ -19,6 +19,11 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   const attemptNumber = (await prisma.recoveryAttempt.count({ where: { paymentId } })) + 1;
   const asOf = opts.asOf ?? new Date();
 
+  // InstallmentPlan.paymentId is unique — a payment gets at most one EMI offer ever. A retry after
+  // that offer already expired/defaulted must not decide EMI_PLAN again (it would crash on the
+  // unique constraint); see decisionEngine's hasPriorEmiOffer check.
+  const hasPriorEmiOffer = (await prisma.installmentPlan.count({ where: { paymentId } })) > 0;
+
   const stats = await getCustomerRecoveryStats(payment.customerId, payment.merchantId, policy.communicationPeriodHours, asOf);
   const hoursSinceFailure = payment.failedAt ? (asOf.getTime() - payment.failedAt.getTime()) / 3600000 : 0;
 
@@ -54,6 +59,7 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
     amount: payment.amount,
     attemptNumber,
     policy,
+    hasPriorEmiOffer,
   };
 
   let decision: DecisionResult;
@@ -62,10 +68,20 @@ export async function processFailedPayment(paymentId: string, opts: ExecuteOptio
   let shadowDecision: unknown = null;
 
   const escalate = shouldEscalateToAI(decisionInput);
-  if (escalate && !opts.simulate) {
-    // Simulation intentionally skips real LLM calls per payment — see simulationService for how
-    // it still exercises the "escalated" code path deterministically without 1000 Groq calls.
-    const ai = await getAIRecommendation(payment.id, payment.merchantId);
+  // Live traffic always gets a real AI call when escalated. Simulated traffic normally wouldn't
+  // (hundreds of ambiguous payments in one run would mean hundreds of real Groq calls) — the one
+  // exception is a bounded, shared budget the simulation engine hands in, letting a sample of
+  // genuinely ambiguous simulated payments exercise the real AI path too. This check-and-decrement
+  // is synchronous (no `await` in between), so concurrent chains can't both spend the same unit.
+  let useRealAI = escalate && !opts.simulate;
+  if (escalate && opts.simulate && opts.aiEscalationBudget && opts.aiEscalationBudget.remaining > 0) {
+    opts.aiEscalationBudget.remaining--;
+    useRealAI = true;
+  }
+  if (useRealAI) {
+    const ai = opts.aiCallMutex
+      ? await opts.aiCallMutex.run(() => getAIRecommendation(payment.id, payment.merchantId))
+      : await getAIRecommendation(payment.id, payment.merchantId);
     if (ai) {
       usedAI = true;
       aiOutput = ai.recommendation;
