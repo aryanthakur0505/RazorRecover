@@ -11,7 +11,6 @@ import { OutcomeFunnelCard } from "@/components/dashboard/OutcomeFunnelCard";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
 import { SimulationPanel } from "@/components/dashboard/SimulationPanel";
 import { AIImpactCard } from "@/components/dashboard/AIImpactCard";
-import { AICalibrationCard } from "@/components/dashboard/AICalibrationCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton, ErrorState, TableSkeleton } from "@/components/shared/States";
@@ -101,8 +100,6 @@ export default function CommandCenterPage() {
       <OutcomeFunnelCard />
 
       <AIImpactCard />
-
-      <AICalibrationCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
