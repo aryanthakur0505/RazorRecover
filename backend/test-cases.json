@@ -1,0 +1,1406 @@
+[
+  {
+    "label": "converted from PaySim row 3 (type=TRANSFER, isFraud=1)",
+    "customerName": "Akash Kapoor",
+    "customerEmail": "akash.kapoor.6145@example.test",
+    "amountRupees": 158,
+    "failureCategory": "SUSPICIOUS_PAYMENT",
+    "isSuspicious": true
+  },
+  {
+    "label": "converted from PaySim row 4 (type=CASH_OUT, isFraud=1)",
+    "customerName": "Rohan Rao",
+    "customerEmail": "rohan.rao.3671@example.test",
+    "amountRupees": 158,
+    "failureCategory": "SUSPICIOUS_PAYMENT",
+    "isSuspicious": true
+  },
+  {
+    "label": "converted from PaySim row 252 (type=TRANSFER, isFraud=1)",
+    "customerName": "Riya Gupta",
+    "customerEmail": "riya.gupta.6421@example.test",
+    "amountRupees": 474,
+    "failureCategory": "SUSPICIOUS_PAYMENT",
+    "isSuspicious": true
+  },
+  {
+    "label": "converted from PaySim row 253 (type=CASH_OUT, isFraud=1)",
+    "customerName": "Harsh Singh",
+    "customerEmail": "harsh.singh.7076@example.test",
+    "amountRupees": 474,
+    "failureCategory": "SUSPICIOUS_PAYMENT",
+    "isSuspicious": true
+  },
+  {
+    "label": "converted from PaySim row 9 (type=PAYMENT)",
+    "customerName": "Nisha Iyer",
+    "customerEmail": "nisha.iyer.2928@example.test",
+    "amountRupees": 558,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 11 (type=DEBIT)",
+    "customerName": "Karan Iyer",
+    "customerEmail": "karan.iyer.6749@example.test",
+    "amountRupees": 836,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 14 (type=PAYMENT)",
+    "customerName": "Vikram Kaur",
+    "customerEmail": "vikram.kaur.2897@example.test",
+    "amountRupees": 913,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 16 (type=CASH_OUT)",
+    "customerName": "Aarav Kaur",
+    "customerEmail": "aarav.kaur.0434@example.test",
+    "amountRupees": 3879,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 17 (type=PAYMENT)",
+    "customerName": "Aditya Arora",
+    "customerEmail": "aditya.arora.0706@example.test",
+    "amountRupees": 366,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 20 (type=TRANSFER)",
+    "customerName": "Kavya Nair",
+    "customerEmail": "kavya.nair.3182@example.test",
+    "amountRupees": 3762,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 25 (type=TRANSFER)",
+    "customerName": "Nikhil Bansal",
+    "customerEmail": "nikhil.bansal.4095@example.test",
+    "amountRupees": 4516,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 26 (type=PAYMENT)",
+    "customerName": "Ananya Mehta",
+    "customerEmail": "ananya.mehta.8826@example.test",
+    "amountRupees": 673,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 29 (type=PAYMENT)",
+    "customerName": "Tanvi Shah",
+    "customerEmail": "tanvi.shah.7828@example.test",
+    "amountRupees": 805,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 37 (type=PAYMENT)",
+    "customerName": "Siddharth Kaur",
+    "customerEmail": "siddharth.kaur.3989@example.test",
+    "amountRupees": 792,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 41 (type=PAYMENT)",
+    "customerName": "Meera Verma",
+    "customerEmail": "meera.verma.4086@example.test",
+    "amountRupees": 378,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 43 (type=CASH_OUT)",
+    "customerName": "Shreya Mehta",
+    "customerEmail": "shreya.mehta.6420@example.test",
+    "amountRupees": 2708,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 44 (type=PAYMENT)",
+    "customerName": "Riya Mehta",
+    "customerEmail": "riya.mehta.4831@example.test",
+    "amountRupees": 758,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 48 (type=CASH_OUT)",
+    "customerName": "Aditi Iyer",
+    "customerEmail": "aditi.iyer.0538@example.test",
+    "amountRupees": 1959,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 50 (type=PAYMENT)",
+    "customerName": "Dev Sharma",
+    "customerEmail": "dev.sharma.1298@example.test",
+    "amountRupees": 426,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 52 (type=CASH_OUT)",
+    "customerName": "Divya Rao",
+    "customerEmail": "divya.rao.3080@example.test",
+    "amountRupees": 1270,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 58 (type=PAYMENT)",
+    "customerName": "Aditi Bansal",
+    "customerEmail": "aditi.bansal.6441@example.test",
+    "amountRupees": 430,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 61 (type=CASH_OUT)",
+    "customerName": "Ananya Shah",
+    "customerEmail": "ananya.shah.4618@example.test",
+    "amountRupees": 2354,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 65 (type=DEBIT)",
+    "customerName": "Nisha Shah",
+    "customerEmail": "nisha.shah.7775@example.test",
+    "amountRupees": 609,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 66 (type=PAYMENT)",
+    "customerName": "Yash Singh",
+    "customerEmail": "yash.singh.8117@example.test",
+    "amountRupees": 692,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 69 (type=DEBIT)",
+    "customerName": "Harsh Arora",
+    "customerEmail": "harsh.arora.0522@example.test",
+    "amountRupees": 624,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 73 (type=CASH_OUT)",
+    "customerName": "Nikhil Kaur",
+    "customerEmail": "nikhil.kaur.6711@example.test",
+    "amountRupees": 2506,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 77 (type=PAYMENT)",
+    "customerName": "Manish Joshi",
+    "customerEmail": "manish.joshi.7423@example.test",
+    "amountRupees": 419,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 79 (type=TRANSFER)",
+    "customerName": "Riya Iyer",
+    "customerEmail": "riya.iyer.9401@example.test",
+    "amountRupees": 1703,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 100 (type=PAYMENT)",
+    "customerName": "Meera Joshi",
+    "customerEmail": "meera.joshi.4711@example.test",
+    "amountRupees": 791,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 106 (type=PAYMENT)",
+    "customerName": "Priya Kulkarni",
+    "customerEmail": "priya.kulkarni.9988@example.test",
+    "amountRupees": 397,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 118 (type=CASH_OUT)",
+    "customerName": "Shreya Sharma",
+    "customerEmail": "shreya.sharma.4037@example.test",
+    "amountRupees": 5233,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 119 (type=CASH_OUT)",
+    "customerName": "Vikram Kulkarni",
+    "customerEmail": "vikram.kulkarni.8731@example.test",
+    "amountRupees": 4683,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 124 (type=TRANSFER)",
+    "customerName": "Neha Malhotra",
+    "customerEmail": "neha.malhotra.6128@example.test",
+    "amountRupees": 4651,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 133 (type=TRANSFER)",
+    "customerName": "Neha Bansal",
+    "customerEmail": "neha.bansal.7467@example.test",
+    "amountRupees": 6645,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 134 (type=TRANSFER)",
+    "customerName": "Neha Nair",
+    "customerEmail": "neha.nair.1393@example.test",
+    "amountRupees": 3422,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 140 (type=TRANSFER)",
+    "customerName": "Kavya Kaur",
+    "customerEmail": "kavya.kaur.8322@example.test",
+    "amountRupees": 3491,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 143 (type=DEBIT)",
+    "customerName": "Arjun Patel",
+    "customerEmail": "arjun.patel.2337@example.test",
+    "amountRupees": 529,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 147 (type=CASH_OUT)",
+    "customerName": "Akash Khanna",
+    "customerEmail": "akash.khanna.5451@example.test",
+    "amountRupees": 5518,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 151 (type=CASH_OUT)",
+    "customerName": "Nisha Sethi",
+    "customerEmail": "nisha.sethi.9791@example.test",
+    "amountRupees": 3191,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 221 (type=PAYMENT)",
+    "customerName": "Simran Gupta",
+    "customerEmail": "simran.gupta.9190@example.test",
+    "amountRupees": 432,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 227 (type=PAYMENT)",
+    "customerName": "Kavya Sethi",
+    "customerEmail": "kavya.sethi.9266@example.test",
+    "amountRupees": 580,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 231 (type=CASH_OUT)",
+    "customerName": "Simran Malhotra",
+    "customerEmail": "simran.malhotra.1661@example.test",
+    "amountRupees": 2190,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 237 (type=TRANSFER)",
+    "customerName": "Nisha Malhotra",
+    "customerEmail": "nisha.malhotra.7908@example.test",
+    "amountRupees": 5594,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 254 (type=PAYMENT)",
+    "customerName": "Rohan Shah",
+    "customerEmail": "rohan.shah.6445@example.test",
+    "amountRupees": 707,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 257 (type=PAYMENT)",
+    "customerName": "Karan Kapoor",
+    "customerEmail": "karan.kapoor.8416@example.test",
+    "amountRupees": 203,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 263 (type=PAYMENT)",
+    "customerName": "Yash Arora",
+    "customerEmail": "yash.arora.0265@example.test",
+    "amountRupees": 782,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 266 (type=PAYMENT)",
+    "customerName": "Yash Iyer",
+    "customerEmail": "yash.iyer.3189@example.test",
+    "amountRupees": 478,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 271 (type=CASH_OUT)",
+    "customerName": "Aditi Sharma",
+    "customerEmail": "aditi.sharma.4339@example.test",
+    "amountRupees": 4290,
+    "failureCategory": "INSUFFICIENT_FUNDS"
+  },
+  {
+    "label": "converted from PaySim row 1 (type=PAYMENT)",
+    "customerName": "Manish Rao",
+    "customerEmail": "manish.rao.6815@example.test",
+    "amountRupees": 844,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 2 (type=PAYMENT)",
+    "customerName": "Priya Kapoor",
+    "customerEmail": "priya.kapoor.4295@example.test",
+    "amountRupees": 395,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 5 (type=PAYMENT)",
+    "customerName": "Nisha Mehta",
+    "customerEmail": "nisha.mehta.7720@example.test",
+    "amountRupees": 914,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 6 (type=PAYMENT)",
+    "customerName": "Aditya Gupta",
+    "customerEmail": "aditya.gupta.5638@example.test",
+    "amountRupees": 757,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 7 (type=PAYMENT)",
+    "customerName": "Harsh Rao",
+    "customerEmail": "harsh.rao.8899@example.test",
+    "amountRupees": 724,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 8 (type=PAYMENT)",
+    "customerName": "Meera Kulkarni",
+    "customerEmail": "meera.kulkarni.0431@example.test",
+    "amountRupees": 759,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 12 (type=PAYMENT)",
+    "customerName": "Dev Kapoor",
+    "customerEmail": "dev.kapoor.7573@example.test",
+    "amountRupees": 495,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 13 (type=PAYMENT)",
+    "customerName": "Aditya Khanna",
+    "customerEmail": "aditya.khanna.2591@example.test",
+    "amountRupees": 455,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 15 (type=PAYMENT)",
+    "customerName": "Nikhil Iyer",
+    "customerEmail": "nikhil.iyer.3832@example.test",
+    "amountRupees": 562,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 18 (type=PAYMENT)",
+    "customerName": "Riya Sharma",
+    "customerEmail": "riya.sharma.2639@example.test",
+    "amountRupees": 322,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 19 (type=PAYMENT)",
+    "customerName": "Aditya Arora",
+    "customerEmail": "aditya.arora.4545@example.test",
+    "amountRupees": 257,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 21 (type=PAYMENT)",
+    "customerName": "Tanvi Khanna",
+    "customerEmail": "tanvi.khanna.4602@example.test",
+    "amountRupees": 346,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 24 (type=PAYMENT)",
+    "customerName": "Ananya Shah",
+    "customerEmail": "ananya.shah.6483@example.test",
+    "amountRupees": 548,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 27 (type=PAYMENT)",
+    "customerName": "Kavya Sethi",
+    "customerEmail": "kavya.sethi.0089@example.test",
+    "amountRupees": 829,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 28 (type=PAYMENT)",
+    "customerName": "Pooja Rao",
+    "customerEmail": "pooja.rao.7012@example.test",
+    "amountRupees": 766,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 30 (type=PAYMENT)",
+    "customerName": "Mohit Kulkarni",
+    "customerEmail": "mohit.kulkarni.6684@example.test",
+    "amountRupees": 847,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 31 (type=PAYMENT)",
+    "customerName": "Tanvi Verma",
+    "customerEmail": "tanvi.verma.3750@example.test",
+    "amountRupees": 520,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 32 (type=PAYMENT)",
+    "customerName": "Meera Joshi",
+    "customerEmail": "meera.joshi.8753@example.test",
+    "amountRupees": 569,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 33 (type=PAYMENT)",
+    "customerName": "Priya Shah",
+    "customerEmail": "priya.shah.4538@example.test",
+    "amountRupees": 664,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 34 (type=PAYMENT)",
+    "customerName": "Riya Verma",
+    "customerEmail": "riya.verma.2710@example.test",
+    "amountRupees": 633,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 35 (type=PAYMENT)",
+    "customerName": "Riya Rao",
+    "customerEmail": "riya.rao.3419@example.test",
+    "amountRupees": 617,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 36 (type=PAYMENT)",
+    "customerName": "Manish Joshi",
+    "customerEmail": "manish.joshi.6099@example.test",
+    "amountRupees": 1295,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 38 (type=PAYMENT)",
+    "customerName": "Dev Sethi",
+    "customerEmail": "dev.sethi.1586@example.test",
+    "amountRupees": 473,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 39 (type=PAYMENT)",
+    "customerName": "Meera Shah",
+    "customerEmail": "meera.shah.8839@example.test",
+    "amountRupees": 739,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 40 (type=PAYMENT)",
+    "customerName": "Priya Reddy",
+    "customerEmail": "priya.reddy.7015@example.test",
+    "amountRupees": 509,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 45 (type=PAYMENT)",
+    "customerName": "Nisha Iyer",
+    "customerEmail": "nisha.iyer.7562@example.test",
+    "amountRupees": 621,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 46 (type=PAYMENT)",
+    "customerName": "Shreya Shah",
+    "customerEmail": "shreya.shah.8283@example.test",
+    "amountRupees": 631,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 47 (type=PAYMENT)",
+    "customerName": "Ananya Sethi",
+    "customerEmail": "ananya.sethi.9463@example.test",
+    "amountRupees": 992,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 51 (type=PAYMENT)",
+    "customerName": "Simran Singh",
+    "customerEmail": "simran.singh.0271@example.test",
+    "amountRupees": 461,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 53 (type=PAYMENT)",
+    "customerName": "Kavya Rao",
+    "customerEmail": "kavya.rao.4408@example.test",
+    "amountRupees": 436,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 54 (type=PAYMENT)",
+    "customerName": "Dev Reddy",
+    "customerEmail": "dev.reddy.6811@example.test",
+    "amountRupees": 371,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 55 (type=PAYMENT)",
+    "customerName": "Tanvi Arora",
+    "customerEmail": "tanvi.arora.1573@example.test",
+    "amountRupees": 816,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 56 (type=PAYMENT)",
+    "customerName": "Dev Sharma",
+    "customerEmail": "dev.sharma.1357@example.test",
+    "amountRupees": 486,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 57 (type=PAYMENT)",
+    "customerName": "Karan Mehta",
+    "customerEmail": "karan.mehta.5308@example.test",
+    "amountRupees": 100,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 64 (type=PAYMENT)",
+    "customerName": "Pooja Kapoor",
+    "customerEmail": "pooja.kapoor.0946@example.test",
+    "amountRupees": 458,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 67 (type=PAYMENT)",
+    "customerName": "Tanvi Khanna",
+    "customerEmail": "tanvi.khanna.2118@example.test",
+    "amountRupees": 611,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 68 (type=PAYMENT)",
+    "customerName": "Dev Kulkarni",
+    "customerEmail": "dev.kulkarni.9629@example.test",
+    "amountRupees": 692,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 70 (type=PAYMENT)",
+    "customerName": "Pooja Malhotra",
+    "customerEmail": "pooja.malhotra.3470@example.test",
+    "amountRupees": 733,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 74 (type=PAYMENT)",
+    "customerName": "Riya Kaur",
+    "customerEmail": "riya.kaur.2912@example.test",
+    "amountRupees": 488,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 75 (type=PAYMENT)",
+    "customerName": "Siddharth Verma",
+    "customerEmail": "siddharth.verma.9795@example.test",
+    "amountRupees": 520,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 76 (type=PAYMENT)",
+    "customerName": "Karan Khanna",
+    "customerEmail": "karan.khanna.8154@example.test",
+    "amountRupees": 576,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 78 (type=PAYMENT)",
+    "customerName": "Ishita Sethi",
+    "customerEmail": "ishita.sethi.2507@example.test",
+    "amountRupees": 962,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 99 (type=PAYMENT)",
+    "customerName": "Harsh Khanna",
+    "customerEmail": "harsh.khanna.2831@example.test",
+    "amountRupees": 479,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 101 (type=PAYMENT)",
+    "customerName": "Mohit Iyer",
+    "customerEmail": "mohit.iyer.6025@example.test",
+    "amountRupees": 286,
+    "failureCategory": "CHECKOUT_ABANDONED"
+  },
+  {
+    "label": "converted from PaySim row 49 (type=CASH_OUT)",
+    "customerName": "Divya Sethi",
+    "customerEmail": "divya.sethi.9200@example.test",
+    "amountRupees": 635,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 71 (type=CASH_OUT)",
+    "customerName": "Neha Nair",
+    "customerEmail": "neha.nair.1736@example.test",
+    "amountRupees": 1793,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 72 (type=CASH_OUT)",
+    "customerName": "Kavya Nair",
+    "customerEmail": "kavya.nair.3860@example.test",
+    "amountRupees": 3010,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 107 (type=CASH_OUT)",
+    "customerName": "Ananya Sharma",
+    "customerEmail": "ananya.sharma.2548@example.test",
+    "amountRupees": 1398,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 108 (type=CASH_OUT)",
+    "customerName": "Rohan Patel",
+    "customerEmail": "rohan.patel.3820@example.test",
+    "amountRupees": 2247,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 109 (type=CASH_OUT)",
+    "customerName": "Dev Gupta",
+    "customerEmail": "dev.gupta.6931@example.test",
+    "amountRupees": 1841,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 110 (type=CASH_OUT)",
+    "customerName": "Riya Kulkarni",
+    "customerEmail": "riya.kulkarni.2746@example.test",
+    "amountRupees": 1001,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 111 (type=CASH_OUT)",
+    "customerName": "Meera Sethi",
+    "customerEmail": "meera.sethi.7617@example.test",
+    "amountRupees": 2288,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 112 (type=CASH_OUT)",
+    "customerName": "Meera Shah",
+    "customerEmail": "meera.shah.0043@example.test",
+    "amountRupees": 3408,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 113 (type=CASH_OUT)",
+    "customerName": "Riya Patel",
+    "customerEmail": "riya.patel.4070@example.test",
+    "amountRupees": 3735,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 114 (type=CASH_OUT)",
+    "customerName": "Dev Gupta",
+    "customerEmail": "dev.gupta.1164@example.test",
+    "amountRupees": 2388,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 115 (type=CASH_OUT)",
+    "customerName": "Aditi Shah",
+    "customerEmail": "aditi.shah.1365@example.test",
+    "amountRupees": 913,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 152 (type=CASH_OUT)",
+    "customerName": "Kavya Mehta",
+    "customerEmail": "kavya.mehta.0733@example.test",
+    "amountRupees": 2350,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 153 (type=CASH_OUT)",
+    "customerName": "Ishita Bansal",
+    "customerEmail": "ishita.bansal.2961@example.test",
+    "amountRupees": 2367,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 154 (type=CASH_OUT)",
+    "customerName": "Ananya Joshi",
+    "customerEmail": "ananya.joshi.6440@example.test",
+    "amountRupees": 2569,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 155 (type=CASH_OUT)",
+    "customerName": "Meera Sethi",
+    "customerEmail": "meera.sethi.2775@example.test",
+    "amountRupees": 3516,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 156 (type=CASH_OUT)",
+    "customerName": "Mohit Verma",
+    "customerEmail": "mohit.verma.5430@example.test",
+    "amountRupees": 4293,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 157 (type=CASH_OUT)",
+    "customerName": "Aditya Sethi",
+    "customerEmail": "aditya.sethi.7477@example.test",
+    "amountRupees": 3504,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 158 (type=CASH_OUT)",
+    "customerName": "Siddharth Khanna",
+    "customerEmail": "siddharth.khanna.2183@example.test",
+    "amountRupees": 2327,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 159 (type=CASH_OUT)",
+    "customerName": "Vikram Shah",
+    "customerEmail": "vikram.shah.9730@example.test",
+    "amountRupees": 3033,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 160 (type=CASH_OUT)",
+    "customerName": "Rahul Gupta",
+    "customerEmail": "rahul.gupta.4771@example.test",
+    "amountRupees": 3197,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 161 (type=CASH_OUT)",
+    "customerName": "Mohit Nair",
+    "customerEmail": "mohit.nair.5751@example.test",
+    "amountRupees": 1903,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 162 (type=CASH_OUT)",
+    "customerName": "Kavya Gupta",
+    "customerEmail": "kavya.gupta.1495@example.test",
+    "amountRupees": 4355,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 163 (type=CASH_OUT)",
+    "customerName": "Arjun Mehta",
+    "customerEmail": "arjun.mehta.4180@example.test",
+    "amountRupees": 4185,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 164 (type=CASH_OUT)",
+    "customerName": "Ishita Khanna",
+    "customerEmail": "ishita.khanna.0631@example.test",
+    "amountRupees": 1801,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 165 (type=CASH_OUT)",
+    "customerName": "Aditi Nair",
+    "customerEmail": "aditi.nair.2696@example.test",
+    "amountRupees": 3570,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 166 (type=CASH_OUT)",
+    "customerName": "Mohit Kaur",
+    "customerEmail": "mohit.kaur.3778@example.test",
+    "amountRupees": 4745,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 167 (type=CASH_OUT)",
+    "customerName": "Simran Bansal",
+    "customerEmail": "simran.bansal.1662@example.test",
+    "amountRupees": 3343,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 168 (type=CASH_OUT)",
+    "customerName": "Shreya Singh",
+    "customerEmail": "shreya.singh.5106@example.test",
+    "amountRupees": 1335,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 169 (type=CASH_OUT)",
+    "customerName": "Dev Arora",
+    "customerEmail": "dev.arora.2425@example.test",
+    "amountRupees": 2760,
+    "failureCategory": "EXPIRED_PAYMENT"
+  },
+  {
+    "label": "converted from PaySim row 10 (type=DEBIT)",
+    "customerName": "Aditi Kapoor",
+    "customerEmail": "aditi.kapoor.0124@example.test",
+    "amountRupees": 634,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 22 (type=DEBIT)",
+    "customerName": "Nikhil Sethi",
+    "customerEmail": "nikhil.sethi.1282@example.test",
+    "amountRupees": 822,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 23 (type=DEBIT)",
+    "customerName": "Harsh Gupta",
+    "customerEmail": "harsh.gupta.9586@example.test",
+    "amountRupees": 311,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 42 (type=DEBIT)",
+    "customerName": "Rohan Reddy",
+    "customerEmail": "rohan.reddy.7878@example.test",
+    "amountRupees": 657,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 60 (type=DEBIT)",
+    "customerName": "Priya Kaur",
+    "customerEmail": "priya.kaur.8517@example.test",
+    "amountRupees": 645,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 62 (type=DEBIT)",
+    "customerName": "Arjun Singh",
+    "customerEmail": "arjun.singh.5803@example.test",
+    "amountRupees": 587,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 63 (type=DEBIT)",
+    "customerName": "Simran Sharma",
+    "customerEmail": "simran.sharma.4583@example.test",
+    "amountRupees": 797,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 122 (type=DEBIT)",
+    "customerName": "Vikram Kulkarni",
+    "customerEmail": "vikram.kulkarni.2151@example.test",
+    "amountRupees": 285,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 127 (type=DEBIT)",
+    "customerName": "Nisha Arora",
+    "customerEmail": "nisha.arora.4135@example.test",
+    "amountRupees": 492,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 148 (type=DEBIT)",
+    "customerName": "Rahul Patel",
+    "customerEmail": "rahul.patel.0239@example.test",
+    "amountRupees": 548,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 228 (type=DEBIT)",
+    "customerName": "Divya Patel",
+    "customerEmail": "divya.patel.2745@example.test",
+    "amountRupees": 587,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 261 (type=DEBIT)",
+    "customerName": "Priya Shah",
+    "customerEmail": "priya.shah.0250@example.test",
+    "amountRupees": 349,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 301 (type=DEBIT)",
+    "customerName": "Riya Kulkarni",
+    "customerEmail": "riya.kulkarni.5498@example.test",
+    "amountRupees": 518,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 303 (type=DEBIT)",
+    "customerName": "Mohit Singh",
+    "customerEmail": "mohit.singh.8201@example.test",
+    "amountRupees": 520,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 327 (type=DEBIT)",
+    "customerName": "Aarav Malhotra",
+    "customerEmail": "aarav.malhotra.3696@example.test",
+    "amountRupees": 703,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 331 (type=DEBIT)",
+    "customerName": "Dev Verma",
+    "customerEmail": "dev.verma.3716@example.test",
+    "amountRupees": 736,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 336 (type=DEBIT)",
+    "customerName": "Vikram Joshi",
+    "customerEmail": "vikram.joshi.4566@example.test",
+    "amountRupees": 591,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 347 (type=DEBIT)",
+    "customerName": "Aarav Nair",
+    "customerEmail": "aarav.nair.0229@example.test",
+    "amountRupees": 529,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 367 (type=DEBIT)",
+    "customerName": "Rahul Sethi",
+    "customerEmail": "rahul.sethi.6329@example.test",
+    "amountRupees": 302,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 390 (type=CASH_IN)",
+    "customerName": "Riya Mehta",
+    "customerEmail": "riya.mehta.4526@example.test",
+    "amountRupees": 3078,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 392 (type=CASH_IN)",
+    "customerName": "Simran Gupta",
+    "customerEmail": "simran.gupta.1540@example.test",
+    "amountRupees": 1566,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 393 (type=CASH_IN)",
+    "customerName": "Aarav Arora",
+    "customerEmail": "aarav.arora.3664@example.test",
+    "amountRupees": 3911,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 394 (type=CASH_IN)",
+    "customerName": "Pooja Sharma",
+    "customerEmail": "pooja.sharma.6302@example.test",
+    "amountRupees": 2104,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 395 (type=CASH_IN)",
+    "customerName": "Pooja Reddy",
+    "customerEmail": "pooja.reddy.6947@example.test",
+    "amountRupees": 3569,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 396 (type=CASH_IN)",
+    "customerName": "Aditi Nair",
+    "customerEmail": "aditi.nair.3699@example.test",
+    "amountRupees": 2023,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 397 (type=CASH_IN)",
+    "customerName": "Shreya Joshi",
+    "customerEmail": "shreya.joshi.0017@example.test",
+    "amountRupees": 2047,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 398 (type=CASH_IN)",
+    "customerName": "Nikhil Arora",
+    "customerEmail": "nikhil.arora.2329@example.test",
+    "amountRupees": 4780,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 399 (type=CASH_IN)",
+    "customerName": "Kavya Joshi",
+    "customerEmail": "kavya.joshi.3001@example.test",
+    "amountRupees": 2993,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 400 (type=CASH_IN)",
+    "customerName": "Tanvi Patel",
+    "customerEmail": "tanvi.patel.3286@example.test",
+    "amountRupees": 4982,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 401 (type=CASH_IN)",
+    "customerName": "Simran Joshi",
+    "customerEmail": "simran.joshi.9670@example.test",
+    "amountRupees": 5226,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 402 (type=CASH_IN)",
+    "customerName": "Riya Shah",
+    "customerEmail": "riya.shah.2677@example.test",
+    "amountRupees": 4512,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 403 (type=CASH_IN)",
+    "customerName": "Dev Shah",
+    "customerEmail": "dev.shah.4517@example.test",
+    "amountRupees": 3168,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 404 (type=CASH_IN)",
+    "customerName": "Kavya Kulkarni",
+    "customerEmail": "kavya.kulkarni.4756@example.test",
+    "amountRupees": 3876,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 405 (type=CASH_IN)",
+    "customerName": "Shreya Sethi",
+    "customerEmail": "shreya.sethi.8287@example.test",
+    "amountRupees": 3806,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 406 (type=CASH_IN)",
+    "customerName": "Harsh Singh",
+    "customerEmail": "harsh.singh.2313@example.test",
+    "amountRupees": 3471,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 407 (type=CASH_IN)",
+    "customerName": "Simran Gupta",
+    "customerEmail": "simran.gupta.2674@example.test",
+    "amountRupees": 3902,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 408 (type=CASH_IN)",
+    "customerName": "Shreya Patel",
+    "customerEmail": "shreya.patel.6984@example.test",
+    "amountRupees": 1611,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 409 (type=CASH_IN)",
+    "customerName": "Priya Kulkarni",
+    "customerEmail": "priya.kulkarni.5627@example.test",
+    "amountRupees": 2411,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 410 (type=CASH_IN)",
+    "customerName": "Nikhil Bansal",
+    "customerEmail": "nikhil.bansal.0509@example.test",
+    "amountRupees": 2754,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 411 (type=CASH_IN)",
+    "customerName": "Nikhil Joshi",
+    "customerEmail": "nikhil.joshi.0107@example.test",
+    "amountRupees": 2214,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 412 (type=CASH_IN)",
+    "customerName": "Karan Rao",
+    "customerEmail": "karan.rao.7698@example.test",
+    "amountRupees": 7046,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 413 (type=CASH_IN)",
+    "customerName": "Aarav Malhotra",
+    "customerEmail": "aarav.malhotra.9405@example.test",
+    "amountRupees": 2665,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 414 (type=CASH_IN)",
+    "customerName": "Meera Iyer",
+    "customerEmail": "meera.iyer.5702@example.test",
+    "amountRupees": 684,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 415 (type=CASH_IN)",
+    "customerName": "Sneha Rao",
+    "customerEmail": "sneha.rao.5372@example.test",
+    "amountRupees": 1313,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 416 (type=CASH_IN)",
+    "customerName": "Mohit Verma",
+    "customerEmail": "mohit.verma.8436@example.test",
+    "amountRupees": 1940,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 417 (type=CASH_IN)",
+    "customerName": "Simran Singh",
+    "customerEmail": "simran.singh.5595@example.test",
+    "amountRupees": 2062,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 418 (type=CASH_IN)",
+    "customerName": "Ananya Malhotra",
+    "customerEmail": "ananya.malhotra.5914@example.test",
+    "amountRupees": 2637,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 419 (type=CASH_IN)",
+    "customerName": "Dev Joshi",
+    "customerEmail": "dev.joshi.3514@example.test",
+    "amountRupees": 3191,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 420 (type=CASH_IN)",
+    "customerName": "Shreya Sethi",
+    "customerEmail": "shreya.sethi.9936@example.test",
+    "amountRupees": 4108,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 421 (type=CASH_IN)",
+    "customerName": "Kavya Bansal",
+    "customerEmail": "kavya.bansal.9483@example.test",
+    "amountRupees": 3637,
+    "failureCategory": "TEMPORARY_FAILURE"
+  },
+  {
+    "label": "converted from PaySim row 59 (type=TRANSFER)",
+    "customerName": "Neha Iyer",
+    "customerEmail": "neha.iyer.1987@example.test",
+    "amountRupees": 2052,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 80 (type=TRANSFER)",
+    "customerName": "Harsh Malhotra",
+    "customerEmail": "harsh.malhotra.1778@example.test",
+    "amountRupees": 2284,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 81 (type=TRANSFER)",
+    "customerName": "Nikhil Singh",
+    "customerEmail": "nikhil.singh.1897@example.test",
+    "amountRupees": 1100,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 82 (type=TRANSFER)",
+    "customerName": "Divya Sethi",
+    "customerEmail": "divya.sethi.1044@example.test",
+    "amountRupees": 2295,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 83 (type=TRANSFER)",
+    "customerName": "Nikhil Mehta",
+    "customerEmail": "nikhil.mehta.5411@example.test",
+    "amountRupees": 3841,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 84 (type=TRANSFER)",
+    "customerName": "Rohan Patel",
+    "customerEmail": "rohan.patel.7876@example.test",
+    "amountRupees": 2888,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 85 (type=TRANSFER)",
+    "customerName": "Rahul Nair",
+    "customerEmail": "rahul.nair.2539@example.test",
+    "amountRupees": 4981,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 86 (type=TRANSFER)",
+    "customerName": "Pooja Mehta",
+    "customerEmail": "pooja.mehta.9124@example.test",
+    "amountRupees": 9866,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 87 (type=TRANSFER)",
+    "customerName": "Nisha Reddy",
+    "customerEmail": "nisha.reddy.6865@example.test",
+    "amountRupees": 6005,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 88 (type=TRANSFER)",
+    "customerName": "Rahul Mehta",
+    "customerEmail": "rahul.mehta.5860@example.test",
+    "amountRupees": 3123,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 89 (type=TRANSFER)",
+    "customerName": "Rahul Malhotra",
+    "customerEmail": "rahul.malhotra.8346@example.test",
+    "amountRupees": 7031,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 90 (type=TRANSFER)",
+    "customerName": "Tanvi Iyer",
+    "customerEmail": "tanvi.iyer.7010@example.test",
+    "amountRupees": 9613,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 91 (type=TRANSFER)",
+    "customerName": "Ishita Shah",
+    "customerEmail": "ishita.shah.4672@example.test",
+    "amountRupees": 4842,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 92 (type=TRANSFER)",
+    "customerName": "Aarav Mehta",
+    "customerEmail": "aarav.mehta.6765@example.test",
+    "amountRupees": 4902,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 93 (type=TRANSFER)",
+    "customerName": "Siddharth Shah",
+    "customerEmail": "siddharth.shah.7940@example.test",
+    "amountRupees": 3714,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 94 (type=TRANSFER)",
+    "customerName": "Vikram Khanna",
+    "customerEmail": "vikram.khanna.8128@example.test",
+    "amountRupees": 6163,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 95 (type=TRANSFER)",
+    "customerName": "Ishita Kaur",
+    "customerEmail": "ishita.kaur.8502@example.test",
+    "amountRupees": 10557,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 96 (type=TRANSFER)",
+    "customerName": "Harsh Reddy",
+    "customerEmail": "harsh.reddy.3569@example.test",
+    "amountRupees": 6794,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 97 (type=TRANSFER)",
+    "customerName": "Kavya Shah",
+    "customerEmail": "kavya.shah.9092@example.test",
+    "amountRupees": 6149,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 98 (type=TRANSFER)",
+    "customerName": "Kavya Arora",
+    "customerEmail": "kavya.arora.2374@example.test",
+    "amountRupees": 926,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 354 (type=TRANSFER)",
+    "customerName": "Aditya Malhotra",
+    "customerEmail": "aditya.malhotra.4923@example.test",
+    "amountRupees": 1905,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 355 (type=TRANSFER)",
+    "customerName": "Shreya Bansal",
+    "customerEmail": "shreya.bansal.3048@example.test",
+    "amountRupees": 2317,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 356 (type=TRANSFER)",
+    "customerName": "Aditya Shah",
+    "customerEmail": "aditya.shah.4701@example.test",
+    "amountRupees": 3725,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 357 (type=TRANSFER)",
+    "customerName": "Divya Gupta",
+    "customerEmail": "divya.gupta.9502@example.test",
+    "amountRupees": 2588,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 358 (type=TRANSFER)",
+    "customerName": "Aditya Bansal",
+    "customerEmail": "aditya.bansal.7478@example.test",
+    "amountRupees": 5555,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 359 (type=TRANSFER)",
+    "customerName": "Vikram Gupta",
+    "customerEmail": "vikram.gupta.9021@example.test",
+    "amountRupees": 9972,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 360 (type=TRANSFER)",
+    "customerName": "Neha Sharma",
+    "customerEmail": "neha.sharma.7322@example.test",
+    "amountRupees": 12499,
+    "failureCategory": "OTHER"
+  },
+  {
+    "label": "converted from PaySim row 361 (type=TRANSFER)",
+    "customerName": "Neha Sharma",
+    "customerEmail": "neha.sharma.2030@example.test",
+    "amountRupees": 9344,
+    "failureCategory": "OTHER"
+  }
+]
