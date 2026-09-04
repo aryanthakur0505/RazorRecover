@@ -3,6 +3,15 @@ import { z } from "zod";
 export const approvalDecisionSchema = z.object({
   decision: z.enum(["APPROVE", "REJECT"]),
   note: z.string().max(500).optional(),
+  // Optional, only meaningful when approving an ESCALATE attempt — logs what the customer
+  // committed to on a follow-up call instead of resolving the attempt directly. Reuses the EMI
+  // installment machinery with a single installment (see emiService.createPromisePlan).
+  promise: z
+    .object({
+      dueDate: z.coerce.date(),
+      amount: z.number().int().positive().optional(), // defaults to the full payment amount if omitted
+    })
+    .optional(),
 });
 
 export const policyUpdateSchema = z.object({
@@ -27,5 +36,33 @@ export const executeAttemptSchema = z.object({
 
 export const escalationResolutionSchema = z.object({
   outcome: z.enum(["RECOVERED", "NOT_RECOVERED"]),
+  note: z.string().max(500).optional(),
+});
+
+export const doNotContactUpdateSchema = z.object({
+  doNotContact: z.boolean(),
+  reason: z.string().max(500).optional(),
+});
+
+// Bulk approve/reject — capped well above any realistic single-click selection so a merchant
+// can't accidentally (or deliberately) fire off an unbounded batch of Razorpay calls in one request.
+export const bulkAttemptIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1).max(200),
+  note: z.string().max(500).optional(),
+});
+
+// "Select all N matching this filter" — no id list at all, since the whole point is to act on
+// more than could ever be loaded/selected client-side. The filter itself (status/q/date range) is
+// still parsed from the query string, identically to GET /opportunities.
+export const bulkActionRequestSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  note: z.string().max(500).optional(),
+});
+
+export const customerNoteSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+
+export const retryOverrideSchema = z.object({
   note: z.string().max(500).optional(),
 });

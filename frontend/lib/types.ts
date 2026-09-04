@@ -31,6 +31,71 @@ export interface Customer {
   id: string;
   name: string;
   email: string;
+  doNotContact: boolean;
+  doNotContactReason: string | null;
+  doNotContactAt: string | null;
+}
+
+export interface CustomerDetail extends Customer {
+  externalRef: string | null;
+  isSimulated: boolean;
+  createdAt: string;
+}
+
+export interface CustomerProfileAttempt {
+  id: string;
+  attemptNumber: number;
+  action: RecoveryAction;
+  status: RecoveryStatus;
+  outcome: string | null;
+  usedAI: boolean;
+  revenueRecovered: number | null;
+  netRecovered: number | null;
+  createdAt: string;
+}
+
+export interface CustomerProfilePayment {
+  id: string;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  failureCategory: FailureCategory;
+  recoveryScore: number | null;
+  createdAt: string;
+  attempts: CustomerProfileAttempt[];
+}
+
+export interface CustomerProfileStats {
+  totalPayments: number;
+  successfulPayments: number;
+  failedPayments: number;
+  lifetimeValue: number;
+  totalRecoveryAttempts: number;
+  successfulRecoveries: number;
+  revenueRecovered: number;
+  recoveryRate: number | null;
+  customerSince: string;
+}
+
+export interface CustomerNote {
+  id: string;
+  customerId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface CustomerProfile {
+  customer: CustomerDetail;
+  stats: CustomerProfileStats;
+  payments: CustomerProfilePayment[];
+  notes: CustomerNote[];
+}
+
+export interface CustomerSearchResult {
+  id: string;
+  name: string;
+  email: string;
+  doNotContact: boolean;
 }
 
 export interface Payment {
@@ -151,6 +216,15 @@ export interface DashboardMetrics {
   baselineSuccessRate: number;
 }
 
+export interface OutcomeFunnel {
+  totalFailedCount: number;
+  totalFailedAmount: number;
+  attemptedCount: number;
+  attemptedAmount: number;
+  recoveredCount: number;
+  recoveredAmount: number;
+}
+
 export interface ChartsResponse {
   revenueOverTime: { date: string; revenueRecovered: number; recoveryCost: number }[];
   byFailureType: { category: string; count: number }[];
@@ -172,6 +246,7 @@ export interface SimulationSummary {
   netRecoveredRevenue: number;
   recoveryRate: number;
   netROI: number;
+  aiEscalatedCount: number;
 }
 
 export interface SimulationJob {
@@ -179,6 +254,18 @@ export interface SimulationJob {
   processed: number;
   total: number;
   result?: SimulationSummary;
+  error?: string;
+}
+
+export interface BulkJob {
+  status: "RUNNING" | "COMPLETED" | "FAILED";
+  action: "approve" | "reject";
+  processed: number;
+  total: number;
+  succeeded: number;
+  failed: number;
+  errors: { id: string; error: string }[];
+  truncated: boolean;
   error?: string;
 }
 
@@ -209,4 +296,98 @@ export interface AIShadowComparison {
   revenueFoundByAI: number;
   casesFoundByAI: number;
   rows: AIShadowRow[];
+}
+
+export interface ConfidenceBucket {
+  label: string;
+  min: number;
+  max: number;
+  count: number;
+  avgStatedConfidence: number | null;
+  actualSuccessRate: number | null;
+}
+
+export interface AIConfidenceCalibration {
+  totalResolved: number;
+  buckets: ConfidenceBucket[];
+  avgConfidenceWhenSucceeded: number | null;
+  avgConfidenceWhenFailed: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// EMI / promise-to-pay plans — a promise is just a plan with tenureMonths === 1 and 0% interest,
+// so one set of types (and one page) covers both. See backend emiService.ts.
+// ---------------------------------------------------------------------------
+
+// OFFERED = 6/12/24-month options sent, customer hasn't picked one yet. ACTIVE = tenure chosen
+// (or a promise, which skips the offer stage entirely). EXPIRED = customer never responded within
+// the window — reverts to normal recovery. See backend emiService.ts.
+export type InstallmentPlanStatus = "OFFERED" | "ACTIVE" | "COMPLETED" | "DEFAULTED" | "EXPIRED" | "CANCELLED";
+export type InstallmentStatus = "PENDING" | "PAID" | "MISSED";
+
+export interface Installment {
+  id: string;
+  installmentNumber: number;
+  dueDate: string;
+  amount: number;
+  status: InstallmentStatus;
+  paidAt: string | null;
+}
+
+// tenureMonths/totalInterest/totalPayable/monthlyAmount are all null while OFFERED — the schedule
+// isn't known until the customer picks a tenure.
+export interface InstallmentPlanListRow {
+  id: string;
+  customer: { id: string; name: string; email: string };
+  paymentId: string;
+  principalAmount: number;
+  tenureMonths: number | null;
+  annualInterestRateBps: number;
+  totalInterest: number | null;
+  totalPayable: number | null;
+  monthlyAmount: number | null;
+  status: InstallmentPlanStatus;
+  startDate: string;
+  offerExpiresAt: string | null;
+  paidCount: number;
+  missedCount: number;
+  pendingCount: number;
+}
+
+export interface InstallmentPlanDetail {
+  id: string;
+  paymentId: string;
+  customerId: string;
+  attemptId: string;
+  principalAmount: number;
+  tenureMonths: number | null;
+  annualInterestRateBps: number;
+  totalInterest: number | null;
+  totalPayable: number | null;
+  monthlyAmount: number | null;
+  status: InstallmentPlanStatus;
+  startDate: string;
+  offerExpiresAt: string | null;
+  createdAt: string;
+  customer: { id: string; name: string; email: string };
+  payment: { id: string; amount: number; failureCategory: string; failedAt: string | null };
+  installments: Installment[];
+}
+
+// ---------------------------------------------------------------------------
+// Re-engagement — payments stopped for repeated-contact reasons, classified by their most recent
+// attempt (see backend routes/recovery.ts's /re-engagement endpoint).
+// ---------------------------------------------------------------------------
+
+export interface ReEngagementRow {
+  paymentId: string;
+  customer: { id: string; name: string; email: string };
+  amount: number;
+  failureCategory: string;
+  attemptNumber: number;
+  lastAttemptAt: string;
+  // Only set for the "cooling down" bucket — when the 72h (or whatever the policy says) window
+  // will roll over and the scheduler will automatically retry this. Null for "exhausted" (nothing
+  // will retry this on its own anymore) or if it's already eligible right now.
+  nextEligibleAt: string | null;
 }

@@ -34,6 +34,22 @@ enum RecoveryAction {
   PAYMENT_LINK
   STOP
   ESCALATE
+  EMI_PLAN // spread an INSUFFICIENT_FUNDS payment across monthly installments instead of asking for the full amount again
+}
+
+enum InstallmentPlanStatus {
+  OFFERED // customer sent 6/12/24-month options, hasn't picked one yet (or plan has no offer stage — a promise)
+  ACTIVE // tenure chosen (or a promise logged directly) — still has unpaid/pending installments
+  COMPLETED // every installment PAID
+  DEFAULTED // broke the plan (see EMI_DEFAULT_AFTER_CONSECUTIVE_MISSES in emiService.ts) — remaining balance goes back to the normal recovery pipeline
+  EXPIRED // customer never responded to the offer within EMI_OFFER_WINDOW_DAYS — reverts to normal recovery
+  CANCELLED // merchant called it off manually before completion or default
+}
+
+enum InstallmentStatus {
+  PENDING // due date hasn't arrived yet
+  PAID
+  MISSED // due date passed without payment
 }
 
 enum RecoveryStatus {
@@ -64,11 +80,13 @@ model Merchant {
   name      String
   createdAt DateTime @default(now())
 
-  customers Customer[]
-  payments  Payment[]
-  attempts  RecoveryAttempt[]
-  policy    RecoveryPolicy?
-  auditLogs AuditLog[]
+  customers       Customer[]
+  payments        Payment[]
+  attempts        RecoveryAttempt[]
+  policy          RecoveryPolicy?
+  auditLogs       AuditLog[]
+  customerNotes   CustomerNote[]
+  installmentPlans InstallmentPlan[]
 }
 
 model Customer {
@@ -80,10 +98,37 @@ model Customer {
   isSimulated Boolean  @default(false) // seeded by the simulation engine, not real webhook traffic
   createdAt   DateTime @default(now())
 
-  merchant Merchant  @relation(fields: [merchantId], references: [id])
-  payments Payment[]
+  // Merchant-controlled exclude list — e.g. known fraud, already refunded out-of-band, or the
+  // customer asked to stop being contacted. Enforced centrally in policyEngine (same choke point
+  // as every other guardrail), never bypassed by AI or the deterministic engine.
+  doNotContact       Boolean   @default(false)
+  doNotContactReason String?
+  doNotContactAt     DateTime?
 
+  merchant         Merchant          @relation(fields: [merchantId], references: [id])
+  payments         Payment[]
+  notes            CustomerNote[]
+  installmentPlans InstallmentPlan[]
+
+  @@unique([merchantId, externalRef])
   @@index([merchantId])
+}
+
+// Free-text, merchant-authored context on a customer — "called them, said they'll pay Friday",
+// "our biggest account, always approve". Append-only (no edit/delete) like the audit log, since
+// a note is a record of what was known/decided at the time, not something that should quietly
+// change after the fact.
+model CustomerNote {
+  id         String   @id @default(cuid())
+  merchantId String
+  customerId String
+  body       String
+  createdAt  DateTime @default(now())
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
 }
 
 model Payment {
@@ -109,6 +154,7 @@ model Payment {
   customer Customer          @relation(fields: [customerId], references: [id])
   attempts RecoveryAttempt[]
   auditLogs AuditLog[]
+  installmentPlan InstallmentPlan?
 
   @@index([merchantId, status])
   @@index([customerId])
@@ -159,12 +205,29 @@ model RecoveryAttempt {
   // Exhausting this cap is what finally marks the attempt FAILED/API_ERROR.
   executionRetries Int @default(0)
 
+  // Set once, by POST /:id/retry-override, when a merchant explicitly retries a previously-STOPPED
+  // attempt past a timing/volume guardrail. Has to live on the row (not just a one-shot request
+  // option) because the override immediately routes to AWAITING_APPROVAL — every later
+  // executeAttempt call for this same row (the eventual approve, a bulk approve, the scheduler)
+  // needs to keep bypassing the same soft guardrails, or the merchant's approval click would just
+  // get stopped again for the exact reason they already overrode.
+  retryOverride Boolean @default(false)
+
+  // Set by the approve route, only for an ESCALATE attempt, when the merchant logs what the
+  // customer committed to on a follow-up call instead of resolving the attempt directly via
+  // POST /:id/resolve. Reuses the exact same InstallmentPlan/Installment machinery as an EMI
+  // plan, just with a single installment and no interest — a promise IS a one-installment plan
+  // (see emiService.createPromisePlan). Both null means "resolve normally", same as today.
+  promisedDueDate DateTime?
+  promisedAmount  Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   payment  Payment  @relation(fields: [paymentId], references: [id])
   merchant Merchant @relation(fields: [merchantId], references: [id])
   auditLogs AuditLog[]
+  installmentPlan InstallmentPlan?
 
   @@index([paymentId])
   @@index([merchantId, status])
@@ -172,17 +235,77 @@ model RecoveryAttempt {
   @@index([merchantId, createdAt])
 }
 
+// Created when an EMI_PLAN attempt or a logged promise is approved & executed. One plan per
+// payment (a payment either recovers in full through the normal pipeline, or gets split into
+// installments — never both).
+//
+// An EMI plan has two phases: OFFERED (customer sent 6/12/24-month options, tenureMonths/
+// totalInterest/totalPayable/monthlyAmount/installments all still null/empty — nothing to collect
+// yet because we don't know the schedule) and, once they pick one, ACTIVE (those fields filled
+// in, installments generated). A promise (see emiService.createPromisePtan) skips the offer phase
+// entirely and is created directly ACTIVE with one installment — there's nothing to "choose",
+// the merchant already has a specific date and amount from the call.
+model InstallmentPlan {
+  id         String                @id @default(cuid())
+  merchantId String
+  paymentId  String                @unique
+  customerId String
+  attemptId  String                @unique // the EMI_PLAN/ESCALATE RecoveryAttempt that created this plan
+
+  principalAmount       Int // paise — the original failed payment amount being spread out
+  tenureMonths          Int? // 6, 12, or 24 once chosen; null while OFFERED
+  annualInterestRateBps Int // basis points (e.g. 1500 = 15.00% p.a.), flat across all tenures by policy — fixed at offer time regardless of which tenure is later chosen
+  totalInterest         Int? // paise — principalAmount * annualInterestRateBps/10000 * tenureMonths/12, flat interest; null while OFFERED
+  totalPayable          Int? // paise — principalAmount + totalInterest; null while OFFERED
+  monthlyAmount         Int? // paise — totalPayable / tenureMonths (last installment absorbs any rounding remainder); null while OFFERED
+
+  status         InstallmentPlanStatus @default(ACTIVE)
+  startDate      DateTime // when the offer was sent (OFFERED/EXPIRED) or the plan actually started (ACTIVE promise/no-offer-stage case)
+  offerExpiresAt DateTime? // startDate + EMI_OFFER_WINDOW_DAYS — null for a promise, which has no offer stage
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  merchant    Merchant          @relation(fields: [merchantId], references: [id])
+  payment     Payment           @relation(fields: [paymentId], references: [id])
+  customer    Customer          @relation(fields: [customerId], references: [id])
+  attempt     RecoveryAttempt   @relation(fields: [attemptId], references: [id])
+  installments Installment[]
+
+  @@index([merchantId, status])
+  @@index([status, offerExpiresAt])
+}
+
+model Installment {
+  id                String             @id @default(cuid())
+  planId            String
+  installmentNumber Int // 1..tenureMonths
+  dueDate           DateTime
+  amount            Int // paise
+  status            InstallmentStatus  @default(PENDING)
+  paidAt            DateTime?
+  razorpayResponse  Json? // simulated/real payment-link response for this month's collection
+
+  plan InstallmentPlan @relation(fields: [planId], references: [id])
+
+  @@unique([planId, installmentNumber])
+  @@index([planId, status])
+  @@index([dueDate, status])
+}
+
 model RecoveryPolicy {
   id                        String   @id @default(cuid())
   merchantId                String   @unique
-  maxRetries                Int      @default(3)
+  maxRetries                Int      @default(5)
   maxAutoRecoveryAmount     Int      @default(500000) // paise (₹5,000)
   maxCommunicationsPerPeriod Int     @default(2)
   communicationPeriodHours  Int      @default(72)
   quietHoursStart           Int      @default(22) // 10pm
   quietHoursEnd             Int      @default(8) // 8am
   minRetryIntervalMinutes   Int      @default(60)
-  retryDelayMinutes         Json     @default("[0, 360, 1440]")
+  // Evenly spaced (every 2 days) instead of the old [0, 6h, 24h] jump-then-stop schedule — more,
+  // better-timed attempts over a longer, gentler window instead of giving up after one real day.
+  // Matches maxRetries=5 above: 5 stages, 5 allowed attempts, nothing here that can't be reached.
+  retryDelayMinutes         Json     @default("[0, 2880, 5760, 8640, 11520]")
   updatedAt                 DateTime @updatedAt
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
