@@ -1,6 +1,6 @@
 import { Router, Request } from "express";
 import { randomUUID } from "crypto";
-import { RecoveryAttempt } from "@prisma/client";
+import { RecoveryAttempt, RecoveryStatus } from "@prisma/client";
 import { prisma } from "../db";
 import { requireSession } from "../middleware/session";
 import { asyncHandler } from "../middleware/errorHandler";
@@ -10,6 +10,7 @@ import {
   bulkAttemptIdsSchema,
   bulkActionRequestSchema,
   retryOverrideSchema,
+  recoveryStatusQuerySchema,
 } from "../schemas/api";
 import { executeAttempt, resolveEscalation, buildIdempotencyKey } from "../services/executionService";
 import { writeAudit } from "../services/auditService";
@@ -26,15 +27,15 @@ recoveryRouter.use(requireSession);
  *  actually matches. `forcedStatus`, when given, overrides whatever status the query string asked
  *  for (bulk actions only ever apply to AWAITING_APPROVAL, regardless of which tab the merchant
  *  happened to be viewing when they clicked "select all"). */
-function buildOpportunityWhere(req: Request, merchantId: string, forcedStatus?: string) {
-  const status = forcedStatus ?? (req.query.status as string | undefined);
+function buildOpportunityWhere(req: Request, merchantId: string, forcedStatus?: RecoveryStatus) {
+  const status = forcedStatus ?? recoveryStatusQuerySchema.parse(req.query.status);
   const q = (req.query.q as string | undefined)?.trim();
   const dateFilter = parseDateRange(req, "createdAt");
   const searchAmount = q ? parseAmountSearch(q) : undefined;
 
   return {
     merchantId,
-    ...(status ? { status: status as any } : {}),
+    ...(status ? { status } : {}),
     ...dateFilter,
     ...(q
       ? {

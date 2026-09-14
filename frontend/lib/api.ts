@@ -19,6 +19,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      // Required by the backend's CSRF check (see middleware/session.ts) on every non-GET
+      // request — a cross-site <form> forgery can't set this, and a cross-site script trying to
+      // would trigger a CORS preflight that the backend's single-origin CORS policy rejects.
+      "X-Requested-With": "XMLHttpRequest",
       ...(init?.headers ?? {}),
     },
   });

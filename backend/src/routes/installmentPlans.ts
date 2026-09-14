@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/errorHandler";
 import { parsePagination } from "../utils/listQuery";
 import { writeAudit } from "../services/auditService";
 import { resolveOfferIfDue, simulateDuePastInstallments } from "../services/emiService";
+import { installmentPlanStatusQuerySchema } from "../schemas/api";
 
 export const installmentPlansRouter = Router();
 installmentPlansRouter.use(requireSession);
@@ -16,10 +17,10 @@ installmentPlansRouter.get(
   "/",
   asyncHandler(async (req, res) => {
     const { page, pageSize, skip, take } = parsePagination(req);
-    const statusFilter = typeof req.query.status === "string" ? req.query.status : undefined;
+    const statusFilter = installmentPlanStatusQuerySchema.parse(req.query.status);
     const where = {
       merchantId: req.merchantId!,
-      ...(statusFilter ? { status: statusFilter as any } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
     };
     const [plans, total] = await Promise.all([
       prisma.installmentPlan.findMany({

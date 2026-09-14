@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { ChatCompletionTool, ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { env } from "../env";
-import { toolImplementations, ToolName } from "./aiTools";
+import { toolImplementations, toolInputSchemas, ToolName } from "./aiTools";
 import { aiRecommendationJsonSchema, aiRecommendationSchema, AIRecommendation } from "../schemas/ai";
 
 // No retries here on purpose: the simulation engine already serializes its real AI calls
@@ -199,10 +199,23 @@ export async function getAIRecommendation(
         messages.push({ role: "tool", tool_call_id: call.id, content: "Unknown tool." });
         continue;
       }
+      // The model's arguments are untrusted input like any other — validate the shape before it
+      // ever reaches a Prisma query (e.g. a hallucinated non-string paymentId would otherwise
+      // silently drop out of the `where` clause and match the merchant's first payment instead of
+      // erroring, per Prisma's normal `undefined`-field behavior).
+      const rawArgs = safeJsonParse(call.function.arguments) ?? {};
+      const argsResult = toolInputSchemas[toolName].safeParse(rawArgs);
+      if (!argsResult.success) {
+        messages.push({
+          role: "tool",
+          tool_call_id: call.id,
+          content: `Invalid arguments: ${argsResult.error.message}`,
+        });
+        continue;
+      }
       try {
-        const args = safeJsonParse(call.function.arguments) ?? {};
         const result = await (impl as (input: any, merchantId: string) => Promise<unknown>)(
-          args,
+          argsResult.data,
           merchantId,
         );
         messages.push({

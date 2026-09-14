@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
+import { env } from "../env";
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
@@ -7,7 +8,11 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     return;
   }
   console.error(`[error] ${req.method} ${req.path}:`, err);
-  const message = err instanceof Error ? err.message : "Internal server error";
+  // The full message (Prisma errors, the Razorpay/Groq SDKs, etc.) is genuinely useful in
+  // development, but in production it can echo back internal detail — table/column names, raw
+  // driver errors — to whoever triggered it. Log it in full either way; only the response is
+  // generic in production.
+  const message = !env.isProduction && err instanceof Error ? err.message : "Internal server error";
   res.status(500).json({ error: message });
 }
 

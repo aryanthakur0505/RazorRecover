@@ -1,5 +1,22 @@
 import { z } from "zod";
 
+// Query-string `status` filters were previously cast straight through with `as any` and handed to
+// Prisma, so an invalid value (a typo, or a client just probing) surfaced as a raw Prisma
+// validation error via the generic 500 handler instead of a clean 400 naming what's actually
+// wrong. Parsing against the real enum up front fixes that for free, via the same ZodError
+// handling every other validated input already gets (see middleware/errorHandler.ts).
+export const paymentStatusQuerySchema = z
+  .enum(["CREATED", "AUTHORIZED", "CAPTURED", "FAILED", "REFUNDED"])
+  .optional();
+
+export const recoveryStatusQuerySchema = z
+  .enum(["PENDING", "AWAITING_APPROVAL", "APPROVED", "REJECTED", "EXECUTING", "EXECUTED", "SUCCEEDED", "FAILED", "STOPPED"])
+  .optional();
+
+export const installmentPlanStatusQuerySchema = z
+  .enum(["OFFERED", "ACTIVE", "COMPLETED", "DEFAULTED", "EXPIRED", "CANCELLED"])
+  .optional();
+
 export const approvalDecisionSchema = z.object({
   decision: z.enum(["APPROVE", "REJECT"]),
   note: z.string().max(500).optional(),

@@ -14,6 +14,8 @@
     "seed": "tsx prisma/seed.ts",
     "seed:ai-demo": "tsx scripts/seed-ai-demo.ts",
     "seed:ai-demo:clear": "tsx scripts/clear-ai-demo.ts",
+    "reset:all": "tsx scripts/reset-all-data.ts",
+    "check:breakdown": "tsx scripts/check-breakdown.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
@@ -23,6 +25,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "openai": "^4.68.0",
     "razorpay": "^2.9.4",
     "zod": "^3.23.8"
@@ -39,5 +43,8 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "overrides": {
+    "qs": "^6.16.0"
   }
 }
