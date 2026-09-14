@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, TableSkeleton } from "@/components/shared/State
 import { LoadMoreFooter } from "@/components/shared/LoadMoreFooter";
 import { usePlans } from "@/hooks/usePlans";
 import { InstallmentPlanStatus } from "@/lib/types";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, ClipboardList } from "lucide-react";
 
 const TABS: { value: InstallmentPlanStatus | "ALL"; label: string }[] = [
   { value: "ALL", label: "All" },
@@ -27,7 +27,10 @@ export default function PlansPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">EMI &amp; Promise Plans</h1>
+        <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
+          <CalendarClock className="size-6 text-chart-1" />
+          EMI &amp; Promise Plans
+        </h1>
         <p className="text-sm text-muted-foreground">
           Every INSUFFICIENT_FUNDS payment offered a 6/12/24-month EMI, and every one-off promise
           made on an escalation call — tracked here from offer, to the customer&apos;s choice, to
@@ -37,7 +40,10 @@ export default function PlansPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Plans</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <ClipboardList className="size-4 text-chart-1" />
+            Plans
+          </CardTitle>
           <CardDescription>A promise to pay is just a plan with a single installment and no interest.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

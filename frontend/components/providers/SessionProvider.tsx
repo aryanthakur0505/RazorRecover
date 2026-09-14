@@ -17,8 +17,7 @@ const SessionContext = createContext<SessionState & { retry: () => void }>({
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: "loading" });
 
-  const init = useCallback(() => {
-    setState({ status: "loading" });
+  const fetchSession = useCallback(() => {
     api
       .post<{ merchantId: string; name: string }>("/api/session/init")
       .then((res) => setState({ status: "ready", merchantName: res.name }))
@@ -33,11 +32,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       );
   }, []);
 
+  // Initial fetch on mount — state already starts as "loading", so nothing needs to be set
+  // synchronously here; the effect just kicks off the request.
   useEffect(() => {
-    init();
-  }, [init]);
+    fetchSession();
+  }, [fetchSession]);
 
-  return <SessionContext.Provider value={{ ...state, retry: init }}>{children}</SessionContext.Provider>;
+  // Manual retry (button click, not an effect) — resetting to "loading" synchronously here is fine.
+  const retry = useCallback(() => {
+    setState({ status: "loading" });
+    fetchSession();
+  }, [fetchSession]);
+
+  return <SessionContext.Provider value={{ ...state, retry }}>{children}</SessionContext.Provider>;
 }
 
 export function useSession() {

@@ -28,6 +28,23 @@ export function CommandPalette() {
   );
   const results = data?.customers ?? [];
 
+  // Reset the query + highlighted row whenever the dialog transitions to open, and reset just the
+  // highlighted row whenever the (debounced) search text changes — both adjusted during render
+  // rather than in an effect, so the reset is visible in the very same paint as the change.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setQuery("");
+      setActiveIndex(0);
+    }
+  }
+  const [syncedTrimmed, setSyncedTrimmed] = useState(trimmed);
+  if (trimmed !== syncedTrimmed) {
+    setSyncedTrimmed(trimmed);
+    setActiveIndex(0);
+  }
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -39,17 +56,12 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Focusing the input is a genuine imperative side effect (not state), so it stays in an effect.
   useEffect(() => {
     if (!open) return;
-    setQuery("");
-    setActiveIndex(0);
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
   }, [open]);
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [trimmed]);
 
   function select(customer: CustomerSearchResult) {
     setOpen(false);

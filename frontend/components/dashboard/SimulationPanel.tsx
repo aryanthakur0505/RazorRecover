@@ -13,7 +13,7 @@ import { PlayCircle, Sparkles } from "lucide-react";
 const SIZES = [100, 500, 1000] as const;
 
 export function SimulationPanel() {
-  const [size, setSize] = useState<(typeof SIZES)[number]>(100);
+  const [size, setSize] = useState<(typeof SIZES)[number]>(500);
   const { job, error, run } = useSimulation();
   const { mutate } = useSWRConfig();
 

@@ -1,349 +1,240 @@
-# RazorRecover — AI Revenue Recovery Agent
+# RazorRecover
 
-An AI-assisted system that detects failed/at-risk Razorpay payments, diagnoses why they failed,
-scores their recoverability, recommends a bounded recovery action, enforces that recommendation
-against merchant guardrails, executes it through Razorpay **Test Mode**, and measures the actual
-gross and net revenue recovered — with a full audit trail.
+**An AI-assisted revenue recovery engine for Razorpay — it figures out why a payment failed, decides what to do about it, and never lets an AI or a human skip the guardrails.**
 
-> **Not** "ChatGPT connected to Razorpay." The AI is a reasoning layer that sits on top of a
-> deterministic backend. It recommends; it never executes. A backend policy engine decides what's
-> allowed, and only allowed actions ever reach Razorpay.
+## Overview
 
-## Problem statement
+Every payment gateway loses money to failed and abandoned payments. Most merchants handle this the same blunt way: retry every failure with the same email or the same charge attempt, regardless of *why* it failed, who the customer is, or whether retrying is even a good idea. That wastes money on payments that were never going to recover and misses payments that would have, with a smarter approach.
 
-Failed and abandoned payments are silent revenue leaks. Merchants either do nothing, or blast
-every failure with the same blunt retry/email regardless of *why* it failed, the customer's
-history, or the risk of the payment being fraudulent. RazorRecover replaces that with a
-per-payment, explainable, guardrailed recovery decision — and reports the net economics of
-running it.
+RazorRecover replaces that blunt retry with a deterministic, explainable pipeline: every failed payment is classified, scored, and assigned a bounded action (retry, send a payment link, split into EMI, stop, or escalate to a human). An AI reasoning layer (via Groq) is consulted **only** for the genuinely ambiguous cases — it never touches money directly, and every one of its recommendations still has to pass the same policy engine a human-made decision would. The system also measures itself: a "Shadow Mode" records what the plain deterministic engine would have done on every AI-assisted case, so the AI's actual value is a measured number, not an assumption.
 
-## Core flow
+## Key Features
 
-```
-Razorpay Event → Verified Webhook → Idempotency → Failure Classification → Recovery Score
-  → Decision Engine (+ AI reasoning for ambiguous cases only) → Policy/Guardrail Check
-  → Human Approval (if required) → Razorpay Action (Test Mode) → Outcome
-  → Net Revenue Calculation → Audit Log
-```
+- **Deterministic failure classification & recovery scoring** — every failed payment gets a 0–100 recoverability score built from explainable factors (prior payment history, time since failure, amount, retry history), not a black box.
+- **Bounded AI escalation** — only payments in an ambiguous score band or with an unclassifiable failure reason reach the AI; routine cases are decided by rules alone, so a 1,000-payment simulation makes zero AI calls by design.
+- **Policy engine as the sole execution gate** — retry limits, auto-recovery amount caps, communication limits, quiet hours, minimum retry spacing, suspicious-payment blocking, and a per-customer do-not-contact list are all enforced independently of who (or what) recommended the action.
+- **AI Shadow Mode** — every AI-assisted decision is compared against what the deterministic engine alone would have done on the same input, giving a real, measured "did the AI actually help" number instead of a guess.
+- **EMI / promise-to-pay** — an `INSUFFICIENT_FUNDS` payment can be offered a 6/12/24-month installment plan (flat interest, customer picks the tenure via a public link, no login); a promise made on a follow-up call is logged the same way as a single-installment plan.
+- **Bulk operations at any scale** — approve/reject a handful of items by checkbox, or "select all N matching this filter" and let a background job process the whole backlog with progress polling.
+- **Idempotent, signature-verified webhooks** — Razorpay webhooks are HMAC-verified over the raw request body and deduplicated by a derived event id before any business logic runs.
+- **Append-only audit trail** — every webhook, score calculation, AI recommendation, policy check, approval, execution, and outcome is written as a permanent row; nothing is ever edited or deleted.
+- **Seeded simulation mode** — generate a reproducible synthetic dataset (100/500/1,000 payments) that runs through the exact same pipeline as live traffic, for testing and demos without needing real webhook traffic.
 
-## Architecture
+## How It Works
 
 ```
-frontend/  Next.js (App Router) + TypeScript + Tailwind + shadcn/ui + Recharts + SWR
-                │  fetch, credentials: include, NEXT_PUBLIC_API_URL
-                ▼
-backend/   Express + TypeScript
-  ├─ routes/        webhooks, session, payments, recovery, policies, audit, metrics, simulation
-  ├─ services/
-  │   ├─ classification.ts     deterministic failure → category
-  │   ├─ scoring.ts            deterministic 0-100 recovery score (+explainable factors)
-  │   ├─ decisionEngine.ts     deterministic action + AI-escalation gate + dunning schedule
-  │   ├─ policyEngine.ts       guardrails — the ONLY place allowed to say "execute"
-  │   ├─ executionService.ts   idempotency → re-verify → re-check policy → Razorpay call → audit
-  │   ├─ aiAgent.ts / aiTools.ts   Groq tool-calling, data-minimized, structured output
-  │   ├─ simulationService.ts  seeded synthetic dataset generator (same engine, no fake logic)
-  │   └─ scheduler.ts          polls due dunning retries (no Redis/queue — v1 simplicity)
-  └─ prisma/schema.prisma      Merchant, Customer, Payment, RecoveryAttempt, RecoveryPolicy,
-                               AuditLog, WebhookEvent (idempotency ledger)
-                │
-                ▼
-         PostgreSQL (hosted)          Razorpay Test Mode API          Groq API
+Razorpay webhook → signature verification → idempotency check → failure classification
+  → recovery score (0–100) → decision engine (+ AI escalation for ambiguous cases only)
+  → policy/guardrail check → human approval (if required) → Razorpay action (Test Mode)
+  → outcome recorded → net revenue calculated → audit log
 ```
 
-**The AI never touches money.** `aiAgent.ts` runs a bounded tool-calling loop (read-only,
-data-minimized tools) and must end by calling `submit_recovery_recommendation`, validated against
-a strict Zod schema. That recommendation is just another input to `decisionEngine`/`policyEngine`
-— the same guardrails apply whether the recommendation came from a human, the deterministic
-engine, or the AI.
+1. **Input** — a `payment.failed` webhook from Razorpay (or a synthetic event from the simulation engine).
+2. **Classification** — `classification.ts` deterministically maps the raw failure reason to a category (`INSUFFICIENT_FUNDS`, `TEMPORARY_FAILURE`, `EXPIRED_PAYMENT`, `CHECKOUT_ABANDONED`, `SUSPICIOUS_PAYMENT`, `OTHER`).
+3. **Scoring** — `scoring.ts` computes a 0–100 recovery score from explainable factors (customer's payment history, time since failure, amount, prior attempt outcomes).
+4. **Decision** — `decisionEngine.ts` picks an action (`RETRY`, `PAYMENT_LINK`, `STOP`, `ESCALATE`, or `EMI_PLAN`) deterministically. If the score falls in a mid-range band or the failure reason is unclassifiable, the case is escalated to the AI reasoning layer instead.
+5. **AI reasoning (ambiguous cases only)** — `aiAgent.ts` runs a bounded, data-minimized tool-calling loop against Groq's OpenAI-compatible API and must end by calling a schema-validated `submit_recovery_recommendation` tool. The AI never sees card numbers, bank details, or customer PII — only operational aggregates. Its recommendation is just another input to the same decision path a human or the deterministic engine would produce.
+6. **Guardrail check** — `policyEngine.ts` independently re-validates the chosen action against the merchant's live policy (retry limits, amount caps, quiet hours, do-not-contact, suspicious-payment blocking) regardless of where the recommendation came from.
+7. **Execution** — `executionService.ts` checks the idempotency key, re-verifies the policy one more time, and only then calls the Razorpay Test Mode API (or a synthetic response during simulation).
+8. **Outcome & audit** — the result (recovered / not recovered / stopped), gross revenue, recovery cost, and net revenue are recorded, and every step of the above writes an audit log row.
 
-**The AI is not called per payment.** Only payments the deterministic engine flags as ambiguous
-(recovery score in a middle band, an unclassifiable failure reason, or conflicting signals across
-attempts) are escalated to Groq. Routine cases — the majority — never make an LLM call. A
-1000-payment simulation makes **zero** Groq calls by design (see "Simulation mode" below).
+## Tech Stack
 
-## Tech stack
-
-| Layer | Choice |
+| Layer | Technology |
 |---|---|
-| Frontend | Next.js, TypeScript, Tailwind CSS, shadcn/ui, lucide-react, Recharts, SWR |
-| Backend | Node.js, Express, TypeScript |
-| Database | PostgreSQL + Prisma ORM |
-| AI | Groq API — free, OpenAI-compatible (tool/function calling, structured outputs) |
-| Payments | Razorpay Test Mode APIs |
-| Validation | Zod (webhooks, AI output, API DTOs) |
-| Deployment | Frontend → Vercel · Backend → Render · DB → any hosted Postgres |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, shadcn/ui (Radix UI primitives), Recharts, SWR, sonner (toasts), next-themes |
+| Backend | Node.js, Express 4, TypeScript, Zod (schema validation) |
+| Database | PostgreSQL via Prisma ORM |
+| AI | Groq API (OpenAI-compatible chat completions + tool calling), accessed via the official `openai` SDK client |
+| Payments | Razorpay Test Mode API (`razorpay` npm package) |
+| Testing | Vitest |
+| Dev tooling | tsx (TS execution/watch), ESLint |
+| Deployment | Render (backend, via `render.yaml`) · Vercel (frontend) · any hosted PostgreSQL (Neon, Supabase, Render Postgres, etc.) |
 
-## Repository layout
+## Project Structure
 
 ```
-backend/    Express API — see backend/.env.example
-frontend/   Next.js app — see frontend/.env.example
-render.yaml Render blueprint for the backend
+RazorRecover/
+├── render.yaml                   # Render blueprint for the backend service
+├── backend/
+│   ├── prisma/
+│   │   ├── schema.prisma         # Merchant, Customer, Payment, RecoveryAttempt, RecoveryPolicy,
+│   │   │                         # InstallmentPlan, Installment, AuditLog, WebhookEvent
+│   │   ├── migrations/           # versioned SQL migrations
+│   │   └── seed.ts               # creates the demo merchant + default policy
+│   ├── scripts/
+│   │   ├── seed-ai-demo.ts       # seeds a few named, real-Groq-call AI demo cases
+│   │   ├── import-test-cases.ts  # runs a hand-written JSON dataset through the real pipeline
+│   │   ├── convert-paysim.ts     # converts the public PaySim dataset into test-case format
+│   │   ├── reset-all-data.ts     # wipes all payment/customer/attempt data for a clean slate
+│   │   └── check-breakdown.ts    # ad-hoc data inspection helper
+│   └── src/
+│       ├── routes/               # webhooks, session, payments, recovery, policies, audit,
+│       │                         # metrics, simulation, customers, installmentPlans, publicOffers
+│       ├── services/
+│       │   ├── classification.ts      # deterministic failure → category
+│       │   ├── scoring.ts             # deterministic 0–100 recovery score
+│       │   ├── decisionEngine.ts      # deterministic action + AI-escalation gate
+│       │   ├── policyEngine.ts        # guardrails — the only place allowed to say "execute"
+│       │   ├── executionService.ts    # idempotency → re-verify → Razorpay call → audit
+│       │   ├── aiAgent.ts / aiTools.ts # Groq tool-calling, data-minimized
+│       │   ├── emiService.ts          # EMI plan / promise-to-pay logic
+│       │   ├── simulationService.ts   # seeded synthetic dataset generator
+│       │   └── scheduler.ts           # polls due dunning retries and installment due-dates
+│       ├── middleware/           # session auth, error handling
+│       └── schemas/              # Zod schemas (API DTOs, webhook payloads, AI output)
+└── frontend/
+    ├── app/                      # Command Center, Recovery Operations, Policies & Audit,
+    │                             # EMI & Promise Plans, Customers, public offer page
+    ├── components/
+    │   ├── dashboard/            # metric cards, charts, AI Impact / Shadow Mode card
+    │   ├── operations/           # opportunity table, decision drawer, bulk action bar
+    │   ├── plans/ policies/ customers/  # feature-specific views
+    │   └── ui/                   # shadcn/ui primitives
+    ├── hooks/                    # SWR data-fetching hooks
+    └── lib/                      # API client, formatting, shared types
 ```
 
-## Local setup
+## Getting Started
 
-Prerequisites: Node 20+, npm, a PostgreSQL database (local or hosted — e.g. [Neon](https://neon.tech)
-or [Supabase](https://supabase.com) both have a free tier that works fine here), a Razorpay Test
-Mode account, and (optionally) a free Groq API key.
+### Prerequisites
 
-### 1. Database
+- Node.js 20+
+- npm
+- A PostgreSQL database (local, or a free hosted tier like [Neon](https://neon.tech) or [Supabase](https://supabase.com))
+- A [Razorpay](https://dashboard.razorpay.com) account with **Test Mode** enabled
+- (Optional) A free [Groq](https://console.groq.com) API key — the app works without one, it just routes every ambiguous case to human review instead
 
-Create a Postgres database and copy its connection string. Any host works as long as it's
-reachable from where the backend runs.
+### Installation
 
-### 2. Backend
+**Backend:**
 
 ```bash
 cd backend
-cp .env.example .env      # fill in DATABASE_URL, Razorpay keys, Groq key, SESSION_SECRET
+cp .env.example .env        # fill in DATABASE_URL, Razorpay keys, Groq key, SESSION_SECRET
 npm install
-npx prisma migrate dev --name init   # creates tables
+npx prisma migrate dev --name init   # creates the database tables
 npm run seed                          # creates the demo merchant + default policy
-npm run dev                           # http://localhost:4000
+npm run dev                           # starts the API on http://localhost:4000
 ```
 
-`GET /health` should return `{"status":"ok",...}` once running.
+Verify it's running: `GET http://localhost:4000/health` should return `{"status":"ok", ...}`.
 
-### 3. Frontend
+**Frontend:**
 
 ```bash
 cd frontend
 cp .env.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:4000
 npm install
-npm run dev                  # http://localhost:3000
+npm run dev                  # starts the app on http://localhost:3002
 ```
 
-Open `http://localhost:3000` — the app calls `POST /api/session/init` on load, which
-finds-or-creates a single demo merchant and sets a signed session cookie (no login screen, per
-the hackathon scope).
+Open `http://localhost:3002` — the app calls `POST /api/session/init` on load, which finds-or-creates a single demo merchant and sets a signed session cookie (there's no login screen; this is a single-merchant demo setup).
 
-## Environment variables
+### Other useful commands
+
+```bash
+# backend/
+npm run build            # compile TypeScript + generate Prisma client
+npm run typecheck         # type-check without emitting
+npm test                  # run the Vitest test suite
+npm run seed:ai-demo       # seed a few named AI-escalated demo cases (real Groq calls)
+npm run reset:all          # wipe all payment/customer/attempt data for a clean slate
+npx prisma studio          # inspect the database with a GUI
+```
+
+## Environment Variables
 
 **Backend** (`backend/.env`):
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string |
-| `PORT` | Server port (Render sets this automatically) |
-| `FRONTEND_URL` | Exact origin allowed by CORS — never a wildcard |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Test Mode API credentials |
-| `RAZORPAY_WEBHOOK_SECRET` | Used to verify the `X-Razorpay-Signature` header |
-| `GROQ_API_KEY` | Optional — if unset, the AI layer reports "unavailable" and every ambiguous case is escalated to human review instead. Free key at console.groq.com |
-| `GROQ_MODEL` | Defaults to `openai/gpt-oss-120b` |
-| `GROQ_BASE_URL` | Defaults to Groq's endpoint — only change this to point at a different OpenAI-compatible provider instead |
-| `SESSION_SECRET` | Signs the mock merchant session cookie |
+| `PORT` | Port the Express server listens on (Render sets this automatically in production) |
+| `NODE_ENV` | `development` or `production` |
+| `FRONTEND_URL` | Exact origin allowed by CORS — a single URL, never a wildcard |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay Test Mode API credentials |
+| `RAZORPAY_WEBHOOK_SECRET` | Used to verify the `X-Razorpay-Signature` header via HMAC-SHA256 |
+| `GROQ_API_KEY` | Optional. If unset, the AI layer reports "unavailable" and every ambiguous case routes to human review instead |
+| `GROQ_MODEL` | Model name for the Groq chat-completions API (defaults to `openai/gpt-oss-120b`) |
+| `GROQ_BASE_URL` | OpenAI-compatible base URL — can point at a different compatible provider without code changes |
+| `SESSION_SECRET` | Signs the demo merchant's session cookie |
 
 **Frontend** (`frontend/.env.local`):
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | Base URL of the backend (no trailing slash) |
+| `NEXT_PUBLIC_API_URL` | Base URL of the backend API (no trailing slash) |
 
-## Database setup & migrations
+> None of the values above are real credentials — copy `.env.example` in each folder and fill in your own.
+
+## Usage
+
+1. **Open the dashboard** (`http://localhost:3002`) — a session initializes automatically against a single demo merchant, no sign-up needed.
+2. **Generate data** — from the Command Center, run a simulation:
+   - **100** or **1,000** payments generates a fresh, randomized (but seed-reproducible) dataset every run.
+   - **500** rebuilds a fixed, hand-specified demo dataset instead of a random one (400 succeed outright, 100 fail across a deliberate mix of recovered / not-recovered / never-attempted / AI-assisted / EMI cases) — useful when you want the exact same numbers every time, e.g. for a recorded demo.
+3. **Work the queue** — go to **Recovery Operations**, filter to "Needs Approval", and open a payment to see its full decision: recovery score with factor breakdown, recommended action, every guardrail check, and (if AI-assisted) the AI's stated confidence. Approve, reject, or override a guardrail-blocked attempt.
+4. **Check the AI honestly** — the **AI Impact — Shadow Mode** card on the Command Center shows, for every AI-assisted decision, what the deterministic engine would have done instead, and whether the AI's disagreements actually paid off.
+5. **Manage guardrails** — **Policies & Audit** lets you edit retry limits, spending caps, and quiet hours live (no redeploy needed), manage the do-not-contact list, and search the complete append-only audit trail.
+6. **EMI & Promise Plans** — view every installment plan and its month-by-month schedule; the public, token-based offer link (`/offer/[id]`) is what a customer would actually open to pick a tenure, no login required.
+
+Example: checking the AI-escalation health of the system directly against the API —
 
 ```bash
-cd backend
-npx prisma migrate dev       # local development — creates/updates tables
-npx prisma migrate deploy    # production — applies pending migrations only
-npx prisma studio            # optional GUI to inspect data
+curl -X POST http://localhost:4000/api/session/init -c cookies.txt
+curl -b cookies.txt "http://localhost:4000/api/recovery/opportunities?status=AWAITING_APPROVAL&pageSize=1"
 ```
 
-The seed script (`npm run seed`) is idempotent — safe to re-run.
+## Architecture / Technical Details
 
-## Razorpay Test Mode setup
-
-1. Sign up at [dashboard.razorpay.com](https://dashboard.razorpay.com) and switch to **Test Mode**.
-2. Settings → API Keys → generate a Test key, copy the Key ID/Secret into `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`.
-3. Settings → Webhooks → Add New Webhook:
-   - URL: `https://<your-backend>/api/webhooks/razorpay` (use an ngrok/tunnel URL for local testing)
-   - Secret: any string — put the same value in `RAZORPAY_WEBHOOK_SECRET`
-   - Events: `payment.failed`, `order.paid` (add `payment.captured` too if you want retry outcomes to resolve on that event as well)
-4. Trigger a test failure from the Razorpay test checkout (use a [test card](https://razorpay.com/docs/payments/payments/test-card-upi-details/) configured to fail) and watch it flow through Recovery Operations.
-
-### Webhook idempotency & signature verification
-
-`POST /api/webhooks/razorpay` is mounted with `express.raw()` so the HMAC-SHA256 signature is
-verified over the exact bytes Razorpay sent (`services/razorpay.ts#verifyWebhookSignature`, using
-`crypto.timingSafeEqual`). An unverified request is rejected with 400 and never processed. Each
-event is deduped by a derived id (`event:entityId:timestamp`) stored in `WebhookEvent` — a
-redelivered webhook is acknowledged with 200 but is a no-op.
-
-## AI setup (Groq)
-
-Set `GROQ_API_KEY` in `backend/.env` — get a free key at [console.groq.com](https://console.groq.com)
-(no credit card required). If omitted, the backend runs fine — the dashboard shows the agent as
-"Unavailable" and ambiguous cases are routed straight to human approval instead of being silently
-guessed at. The agent only ever receives operational fields (see "Data minimization" below) via a
-fixed set of read-only tools, and its only write action is a structured recommendation that the
-policy engine independently re-evaluates.
-
-**Using a different provider instead?** Set `GROQ_BASE_URL` and `GROQ_MODEL` to point the same
-client elsewhere — no code changes needed, since this just needs an OpenAI-compatible
-chat-completions + tool-calling API, which several providers mirror exactly:
-
-| Provider | `GROQ_BASE_URL` | `GROQ_MODEL` |
-|---|---|---|
-| [Groq](https://console.groq.com) (free, no card) — default | `https://api.groq.com/openai/v1` | `openai/gpt-oss-120b` |
-| [Gemini](https://aistudio.google.com) (free tier) | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` |
-| OpenAI | `https://api.openai.com/v1` (or omit) | `gpt-4o-mini` |
-
-Note that an OpenAI key specifically needs **billing credits** added at
-platform.openai.com/settings/organization/billing before calls succeed — a fresh API key with $0
-credits authenticates fine but every call fails with a 429 `insufficient_quota` error, which the
-agent treats the same as "unavailable" (falls back to human review). Groq's free tier doesn't have
-this requirement.
-
-## Data minimization
-
-The AI never sees card numbers, CVV, bank credentials, passwords, or Razorpay secrets — Razorpay
-itself never gives the backend those either. It also never sees customer name/email/phone; its
-tools return only operational aggregates: payment id/amount/status/category, and counts like
-previous successful/failed payments, previous recovery attempts/success rate, and time since last
-payment.
-
-## Simulation mode
-
-From the Executive Command Center, pick 100 / 500 / 1000 and run a simulation. It generates a
-seeded (mulberry32 PRNG) synthetic dataset of customers and payments — a realistic mix of
-successful payments and failures across all categories, amounts, and histories — and runs every
-one of them through the **exact same** classification → scoring → decision → policy →
-execution → audit pipeline as live traffic. The only thing swapped out is the Razorpay network
-call itself (replaced with a synthetic response shaped like a real one), so 1000 payments doesn't
-mean 1000 real Test Mode API calls. Same seed → same dataset → reproducible results (with one
-narrow exception — see below).
-
-Simulation mostly skips real AI calls (hundreds of ambiguous payments in one run would mean
-hundreds of real Groq calls) — with one bounded exception: up to `SIMULATION_AI_ESCALATION_CAP`
-(20) genuinely ambiguous payments per run *do* make a real Groq call, so "AI Impact — Shadow Mode"
-gets organically populated by simulated traffic too, not only by hand-run demo data. The run's
-summary reports `aiEscalatedCount` — if it's 0, that run just didn't happen to generate any
-ambiguous cases (an 8%-weighted category plus a mid-range score band, so it varies run to run), not
-a bug. This is the one place a simulation isn't perfectly reproducible run-to-run, since a live LLM
-call isn't seed-controlled — an acceptable, explicit trade-off for the feature to mean anything.
-
-To add more hand-picked, individually-named demo cases beyond what simulation naturally produces,
-`npm run seed:ai-demo` (backend) still works the same way — real Groq calls, real scoring off real
-backdated history, never touches the real Razorpay API, every outcome a fair, unstaged roll
-(`npm run seed:ai-demo:clear` removes it again).
-
-## AI Shadow Mode
-
-Every payment escalated to the AI also has the deterministic engine's own decision computed on
-the same input — never acted on, purely for comparison (`RecoveryAttempt.shadowDecision`). The
-"AI Impact" card on the Command Center reports how often they agreed, and for disagreements, an
-*estimated* incremental net revenue figure — necessarily an estimate, not a fact, since the same
-payment can't be given two different actions in reality; the untaken path is projected using the
-same recovery-score probability model the rest of the app already trusts for that action. This is
-what answers "is the AI actually adding value?" with a number instead of an assumption.
-
-## Recovery workflow
-
-`RETRY` → creates a fresh Razorpay Order (Test Mode can't silently re-charge a failed card) with a
-dunning delay per attempt number. `PAYMENT_LINK` → creates a real Razorpay Payment Link. `STOP` →
-halts automation, no external call. `ESCALATE` → routes to human approval (always used for
-suspicious payments). A background scheduler (1-minute interval scan — no Redis/queue needed at
-this scale) picks up attempts whose scheduled time has arrived.
-
-## Guardrails (policy engine)
-
-Enforced in `services/policyEngine.ts`, independent of who recommended the action:
-
-- **Retry limit** — no more than `maxRetries` attempts per payment
-- **Amount limit** — auto-execution capped at `maxAutoRecoveryAmount`; above it, requires merchant approval
-- **Communication limit** — at most `maxCommunicationsPerPeriod` payment links per customer per `communicationPeriodHours`
-- **Suspicious payment rule** — `RETRY`/`PAYMENT_LINK` forbidden outright
-- **Do-not-contact rule** — same as suspicious payment, but per-customer and merchant-controlled
-  (see below) rather than derived from the payment itself
-- **Payment state rule** — never acts on an already-captured/refunded payment
-- **Quiet hours** — no automated retry/link inside the configured window
-- **Minimum retry spacing** — enforces `minRetryIntervalMinutes` between attempts
-
-All are editable from Policies & Audit and take effect immediately on the next evaluation.
-
-## Do-not-contact list
-
-A merchant can flag an individual customer as do-not-contact from the Recovery Decision drawer —
-e.g. known fraud, already refunded out-of-band, or the customer asked to stop being contacted.
-`PATCH /api/customers/:id/do-not-contact` sets the flag and immediately stops any of that
-customer's attempts still sitting in `PENDING`/`AWAITING_APPROVAL` (so flipping it takes effect
-right away, not just on their next failed payment), while `STOP`/`ESCALATE` stay allowed since
-those never contact the customer automatically. Enforced in `policyEngine.ts` alongside every
-other guardrail — the AI agent and deterministic engine can still recommend `RETRY`/`PAYMENT_LINK`
-for a do-not-contact customer, but execution is always blocked at the same choke point.
-
-## Bulk approve/reject
-
-Recovery Operations supports two ways to act on many `AWAITING_APPROVAL` attempts at once, so the
-approach doesn't depend on how big the merchant's queue is:
-
-- **Checkbox selection** (`POST /api/recovery/bulk-approve` / `bulk-reject`, id list capped at 200)
-  — for picking a handful of specific rows off the current page. Runs synchronously; each id goes
-  through the exact same single-attempt approve/reject path (guardrail re-check, Razorpay call)
-  with bounded concurrency (5 in flight).
-- **"Select all N matching this filter"** (`POST /api/recovery/bulk-jobs`, no id list at all) —
-  for clearing the entire backlog regardless of size. Instead of an id list, it takes the same
-  filter (`q`/`from`/`to`) as `GET /opportunities`, resolves the match itself (capped at 5,000 per
-  job, reported back as `truncated` rather than silently dropped — running it again picks up the
-  rest), and processes it as a background job the frontend polls for progress
-  (`GET /bulk-jobs/:jobId`) — the same job-tracker pattern already used for simulations. A merchant
-  with 20 stuck items and one with 20,000 use the identical button; only the progress bar's length
-  differs.
-
-## Idempotency
-
-Every recovery attempt gets a key = `sha256(paymentId:attemptNumber:action)`, stored as a unique
-column. `executionService` checks it before doing anything; a repeated trigger (duplicate webhook,
-scheduler re-scan, double-click) is a safe no-op. Webhook events are separately deduped in
-`WebhookEvent` before any business logic runs.
-
-## Revenue / ROI calculation
-
-All figures are computed live from stored rows — nothing is hard-coded:
-
-- **Revenue at risk** = sum of currently-`FAILED` payment amounts
-- **Gross revenue recovered** = sum of `revenueRecovered` across attempts
-- **Recovery cost** = sum of `recoveryCost` (flat assumed per-action cost + AI cost when used)
-- **Net recovered revenue** = gross recovered − recovery cost
-- **Recovery rate** = succeeded / (succeeded + failed) resolved attempts
-- **Net ROI** = net recovered revenue / recovery cost
-
-## Audit trail
-
-`AuditLog` is append-only — no route anywhere updates or deletes a row. Every webhook receipt,
-score calculation, AI recommendation, policy check, approval decision, execution, and outcome
-writes a new row, visible on the Policies & Audit screen.
+- **Frontend ↔ backend**: the Next.js app talks to the Express API over `fetch` with `credentials: "include"`, using a single `NEXT_PUBLIC_API_URL`. There's no server-side rendering dependency on the backend — it's a plain client-fetched SPA-style app on top of the App Router.
+- **Session**: a signed cookie (`SESSION_SECRET`) identifies a single demo merchant per session — there's no real authentication system, which is an intentional scope decision, not an oversight.
+- **Database access**: all backend data access goes through Prisma against PostgreSQL. The schema separates `Payment` (immutable facts about a transaction) from `RecoveryAttempt` (one row per action taken on it, with `attemptNumber` for dunning retries), and `InstallmentPlan`/`Installment` model EMI plans and logged promises with the same underlying tables.
+- **Webhook integrity**: `POST /api/webhooks/razorpay` is mounted with `express.raw()` so the HMAC signature is verified over the exact bytes Razorpay sent, using `crypto.timingSafeEqual`. Each event is deduplicated by a derived id in the `WebhookEvent` table before anything else runs.
+- **Idempotency**: every recovery attempt has an idempotency key (`sha256(paymentId:attemptNumber:action)`), checked by `executionService` before any Razorpay call — a duplicate webhook, a scheduler re-scan, or a double-click all resolve to a safe no-op.
+- **AI boundary**: `aiAgent.ts` calls Groq only for the score band/failure category combinations the deterministic engine flags as ambiguous. It runs a bounded tool-calling loop with read-only, data-minimized tools and must terminate by calling a Zod-validated `submit_recovery_recommendation` tool — its output is treated as just another input to `decisionEngine`/`policyEngine`, never a direct trigger for execution.
+- **Guardrails as a single chokepoint**: `policyEngine.ts` is the only code path allowed to authorize an action reaching Razorpay. It's invoked identically whether the recommendation came from the deterministic engine, the AI, or a human override — there's no separate "AI-trusted" path.
+- **No queue infrastructure**: the background `scheduler.ts` polls for due dunning retries and installment due-dates on a fixed interval instead of using Redis or a message queue — a deliberate simplicity trade-off at this scale, noted directly in the code as something a multi-instance production deployment would need to revisit.
+- **Bulk jobs**: the "select all N matching this filter" bulk-approve/reject flow runs as an in-memory tracked background job (bounded concurrency), polled by the frontend for progress — the same pattern the simulation engine uses for its own progress reporting.
 
 ## Deployment
 
-### Backend → Render
-
-Use the included `render.yaml` (Render → New → Blueprint), or manually:
+**Backend → Render**, using the included `render.yaml` blueprint (Render → New → Blueprint):
 - Root directory: `backend`
-- Build: `npm install && npm run build && npx prisma migrate deploy`
-- Start: `npm start`
+- Build command: `npm install --include=dev && npm run build && npx prisma migrate deploy`
+- Start command: `npm start`
 - Health check path: `/health`
-- Set all env vars from the table above (`FRONTEND_URL` = your Vercel URL)
+- Environment variables are declared in `render.yaml`; the ones marked `sync: false` (database URL, Razorpay keys, Groq key, frontend URL) must be filled in manually in the Render dashboard. `SESSION_SECRET` is auto-generated by Render.
 
-### Frontend → Vercel
-
+**Frontend → Vercel**:
 - Root directory: `frontend`
-- Framework preset: Next.js (auto-detected)
-- Env var: `NEXT_PUBLIC_API_URL` = your Render backend URL
+- Framework preset: Next.js (auto-detected, zero extra config)
+- Environment variable: `NEXT_PUBLIC_API_URL` set to the deployed Render backend URL
 
-### Database → hosted Postgres
+**Database**: any hosted PostgreSQL provider. Point `DATABASE_URL` at it and run `npx prisma migrate deploy` once — the Render build command above already does this on every deploy automatically.
 
-Any provider works (Neon, Supabase, Render Postgres, RDS). Point `DATABASE_URL` at it and run
-`npx prisma migrate deploy` once (the Render build command above does this automatically on
-every deploy).
+## Challenges & Solutions
 
-## Troubleshooting
+- **Guardrails had to apply no matter who made the recommendation.** It would have been easy to let the AI "trust itself" and skip a check a human override would still be subject to. The fix was architectural: `policyEngine.ts` is invoked as a single, final chokepoint before any Razorpay call, regardless of whether the recommended action came from the rules engine, the AI, or a manual override.
+- **Proving the AI is actually useful, not just present.** Rather than assume an LLM improves outcomes, every AI-assisted decision also computes (but never acts on) what the deterministic engine alone would have chosen — "Shadow Mode" — so the AI's real, measured contribution (or lack of one) is visible on the dashboard instead of asserted in a README.
+- **Idempotency across multiple retry sources.** A payment can be retried by a redelivered webhook, a scheduler re-scan, and a merchant's double-click, all for the same logical action. A deterministic idempotency key (`sha256(paymentId:attemptNumber:action)`) checked before every execution collapses all three into a single safe no-op.
+- **Keeping AI cost and latency bounded at scale.** A 1,000-payment simulation calling an LLM for every row would be slow and expensive for no real benefit. The decision engine escalates only genuinely ambiguous cases (a narrow score band or an unclassifiable failure reason), and the simulation engine additionally caps AI calls per run — routine cases never make a network call at all.
+- **Groq's free-tier rate limits are real during heavy testing.** Bulk-seeding several AI-escalated demo cases back-to-back can hit the per-minute token limit (`rate_limit_exceeded`); the code already treats a failed AI call the same as "unavailable" and falls back to human review rather than surfacing a hard error.
+- **Reliable demo data without depending on live network calls.** Random-but-seeded simulation is reproducible in shape but not in exact narrative. For situations needing an identical result every run (e.g. recording a demo), `simulationService.ts` also supports a fixed, hand-specified dataset (the "500" option) that rebuilds the same numbers every time, with no live Groq calls involved.
 
-| Symptom | Likely cause |
-|---|---|
-| Frontend shows "Backend unavailable" | `NEXT_PUBLIC_API_URL` wrong/unreachable, or backend crashed on boot (check env vars) |
-| CORS error in browser console | `FRONTEND_URL` on the backend doesn't exactly match the frontend's origin |
-| Webhook returns 400 | Signature mismatch — `RAZORPAY_WEBHOOK_SECRET` doesn't match what's configured in the Razorpay Dashboard |
-| `prisma migrate` fails to connect | `DATABASE_URL` unreachable — check host/port/SSL mode (`?sslmode=require` for most hosted Postgres) |
-| Agent status shows "Unavailable" | `GROQ_API_KEY` not set — this is a safe, expected fallback, not a bug |
-| Simulation seems stuck at "Simulating…" | Check the backend logs — 1000 payments processed sequentially can take up to ~30-60s |
+## Future Improvements
+
+- Replace the in-memory bulk-job/simulation-job tracker (a plain `Map`, explicitly noted in the code as single-instance-only) with a persisted job store for multi-instance deployments.
+- Replace the interval-polling scheduler with a real queue (e.g. Redis-backed) once retry/installment volume outgrows a single-instance poll loop.
+- Expand automated test coverage beyond the current `decisionEngine` / `policyEngine` / `scoring` unit tests (e.g. route-level integration tests, webhook signature edge cases).
+- Support real merchant authentication/multi-tenant login instead of the current single demo-merchant session model.
+- Support currencies other than INR (amounts are currently paise-denominated throughout).
+
+## Screenshots / Demo
+
+No screenshots or hosted demo links are currently checked into this repository. Recommended next step: run the app locally (see **Getting Started**), generate a simulation dataset, and add screenshots of the Command Center, Recovery Operations, and Policies & Audit screens here.
+
+## License
+
+No `LICENSE` file is currently present in this repository, so no license terms are specified.

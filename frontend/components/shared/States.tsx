@@ -1,3 +1,6 @@
+"use client";
+
+import { motion } from "motion/react";
 import { AlertCircle, Inbox, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,11 +15,18 @@ export function EmptyState({
   icon?: typeof Inbox;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center">
-      <Icon className="size-8 text-muted-foreground" />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center"
+    >
+      <div className="rounded-full bg-muted p-3">
+        <Icon className="size-6 text-muted-foreground" />
+      </div>
       <p className="font-medium">{title}</p>
       {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}
-    </div>
+    </motion.div>
   );
 }
 
@@ -30,8 +40,15 @@ export function ErrorState({
   onRetry?: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
-      <AlertCircle className="size-8 text-status-critical" />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center"
+    >
+      <div className="rounded-full bg-status-critical/10 p-3">
+        <AlertCircle className="size-6 text-status-critical" />
+      </div>
       <p className="font-medium">{title}</p>
       {description && <p className="max-w-sm text-sm text-muted-foreground">{description}</p>}
       {onRetry && (
@@ -39,7 +56,7 @@ export function ErrorState({
           Try again
         </Button>
       )}
-    </div>
+    </motion.div>
   );
 }
 

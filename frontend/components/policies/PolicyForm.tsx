@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -10,8 +10,8 @@ import { RecoveryPolicy } from "@/lib/types";
 import { api, ApiError } from "@/lib/api";
 import { Loader2, Save } from "lucide-react";
 
-export function PolicyForm({ policy, onSaved }: { policy: RecoveryPolicy; onSaved: () => void }) {
-  const [form, setForm] = useState({
+function formFromPolicy(policy: RecoveryPolicy) {
+  return {
     maxRetries: policy.maxRetries,
     maxAutoRecoveryAmountRupees: policy.maxAutoRecoveryAmount / 100,
     maxCommunicationsPerPeriod: policy.maxCommunicationsPerPeriod,
@@ -20,21 +20,21 @@ export function PolicyForm({ policy, onSaved }: { policy: RecoveryPolicy; onSave
     quietHoursEnd: policy.quietHoursEnd,
     minRetryIntervalMinutes: policy.minRetryIntervalMinutes,
     retryDelayMinutes: policy.retryDelayMinutes.join(", "),
-  });
+  };
+}
+
+export function PolicyForm({ policy, onSaved }: { policy: RecoveryPolicy; onSaved: () => void }) {
+  const [form, setForm] = useState(() => formFromPolicy(policy));
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setForm({
-      maxRetries: policy.maxRetries,
-      maxAutoRecoveryAmountRupees: policy.maxAutoRecoveryAmount / 100,
-      maxCommunicationsPerPeriod: policy.maxCommunicationsPerPeriod,
-      communicationPeriodHours: policy.communicationPeriodHours,
-      quietHoursStart: policy.quietHoursStart,
-      quietHoursEnd: policy.quietHoursEnd,
-      minRetryIntervalMinutes: policy.minRetryIntervalMinutes,
-      retryDelayMinutes: policy.retryDelayMinutes.join(", "),
-    });
-  }, [policy]);
+  // Re-derive the form whenever a *different* policy object comes in (e.g. after a refetch)
+  // without an effect — adjusting state during render, as React recommends, avoids the extra
+  // render pass an effect-based sync would cost.
+  const [syncedPolicy, setSyncedPolicy] = useState(policy);
+  if (policy !== syncedPolicy) {
+    setSyncedPolicy(policy);
+    setForm(formFromPolicy(policy));
+  }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));

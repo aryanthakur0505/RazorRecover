@@ -12,6 +12,7 @@ import { usePolicy } from "@/hooks/usePolicies";
 import { useAuditLog } from "@/hooks/useAudit";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { resolveDateRange, DateRangePreset } from "@/lib/dateGroups";
+import { ShieldCheck, ScrollText } from "lucide-react";
 
 export default function PoliciesPage() {
   const { data: policyData, error: policyError, isLoading: policyLoading, mutate: mutatePolicy } = usePolicy();
@@ -35,7 +36,10 @@ export default function PoliciesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Policies & Audit</h1>
+        <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
+          <ShieldCheck className="size-6 text-chart-1" />
+          Policies & Audit
+        </h1>
         <p className="text-sm text-muted-foreground">
           Configure the guardrails every recovery action must pass, and review the complete, append-only audit trail.
         </p>
@@ -53,7 +57,10 @@ export default function PoliciesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Audit Trail</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <ScrollText className="size-4 text-chart-1" />
+            Audit Trail
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <ListFilterBar

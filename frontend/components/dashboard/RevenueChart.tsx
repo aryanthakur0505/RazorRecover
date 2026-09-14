@@ -1,6 +1,6 @@
 "use client";
 
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, TooltipContentProps } from "recharts";
 import { formatCompactCurrency, formatDateShort } from "@/lib/format";
 import { EmptyState } from "@/components/shared/States";
 
@@ -10,14 +10,14 @@ interface Point {
   recoveryCost: number;
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label }: TooltipContentProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="mb-1 font-medium">{formatDateShort(label)}</p>
-      {payload.map((p: any) => (
-        <p key={p.dataKey} style={{ color: p.color }} className="tabular-nums">
-          {p.name}: {formatCompactCurrency(p.value)}
+      <p className="mb-1 font-medium">{formatDateShort(String(label))}</p>
+      {payload.map((p) => (
+        <p key={String(p.name ?? p.dataKey)} style={{ color: p.color }} className="tabular-nums">
+          {p.name}: {formatCompactCurrency(Number(p.value))}
         </p>
       ))}
     </div>
@@ -47,7 +47,7 @@ export function RevenueChart({ data }: { data: Point[] }) {
           tickLine={false}
           width={64}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={CustomTooltip} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Line
           type="monotone"

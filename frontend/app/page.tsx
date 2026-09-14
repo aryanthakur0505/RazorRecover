@@ -24,6 +24,9 @@ import {
   LineChart as LineChartIcon,
   Receipt,
   Printer,
+  PieChart,
+  SplitSquareVertical,
+  BarChart3,
 } from "lucide-react";
 
 export default function CommandCenterPage() {
@@ -37,7 +40,7 @@ export default function CommandCenterPage() {
       {/* Screen-only header, with the one-click export. */}
       <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Executive Command Center</h1>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">Executive Command Center</h1>
           <p className="text-sm text-muted-foreground">
             Live revenue-recovery performance across every failed and at-risk payment.
           </p>
@@ -104,7 +107,10 @@ export default function CommandCenterPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Revenue Recovered vs Cost Over Time</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <LineChartIcon className="size-4 text-chart-1" />
+              Revenue Recovered vs Cost Over Time
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {chartsLoading || !charts ? <TableSkeleton rows={4} /> : <RevenueChart data={charts.revenueOverTime} />}
@@ -112,7 +118,10 @@ export default function CommandCenterPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Recovery Attempt Outcomes</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <PieChart className="size-4 text-chart-3" />
+              Recovery Attempt Outcomes
+            </CardTitle>
             <CardDescription>Of the payments that needed recovery, how many were won back</CardDescription>
           </CardHeader>
           <CardContent>
@@ -128,7 +137,10 @@ export default function CommandCenterPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recovery by Failure Type</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <SplitSquareVertical className="size-4 text-chart-2" />
+              Recovery by Failure Type
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {chartsLoading || !charts ? (
@@ -143,7 +155,10 @@ export default function CommandCenterPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Recovery by Action</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="size-4 text-chart-4" />
+              Recovery by Action
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {chartsLoading || !charts ? (
@@ -166,7 +181,10 @@ export default function CommandCenterPage() {
 
       <Card className="print:hidden">
         <CardHeader>
-          <CardTitle>Recent Recovery Activity</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Receipt className="size-4 text-chart-1" />
+            Recent Recovery Activity
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {activityLoading || !activity ? <TableSkeleton /> : <RecentActivityTable attempts={activity.attempts} />}

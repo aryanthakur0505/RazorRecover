@@ -111,7 +111,7 @@ export default function PlanDetailPage() {
         <>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+              <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
                 <CalendarClock className="size-5 text-muted-foreground" />
                 {plan.tenureMonths === null ? "EMI Offer" : isPromise ? "Promise to Pay" : `${plan.tenureMonths}-month EMI Plan`}
               </h1>

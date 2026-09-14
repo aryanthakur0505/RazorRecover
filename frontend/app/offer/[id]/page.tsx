@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import { toast } from "sonner";
+import { motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CardSkeleton, ErrorState } from "@/components/shared/States";
@@ -74,11 +75,16 @@ export default function CustomerOfferPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-10">
-      <div className="w-full max-w-lg space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,var(--chart-1)_0%,transparent_45%)] bg-muted/30 px-4 py-10">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+        className="w-full max-w-lg space-y-4"
+      >
         <div className="flex items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
           <ShieldHalf className="size-4 text-chart-1" />
-          RazorRecover Payment Options
+          <span className="font-heading">RazorRecover Payment Options</span>
         </div>
 
         {error ? (
@@ -121,29 +127,36 @@ export default function CustomerOfferPage() {
             </Card>
 
             <div className="space-y-3">
-              {data.options.map((opt) => (
-                <Card key={opt.tenureMonths}>
-                  <CardContent className="flex items-center justify-between gap-4 py-4">
-                    <div>
-                      <p className="text-lg font-semibold">{opt.tenureMonths} months</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(opt.monthlyAmount)}/mo · {formatCurrency(opt.totalInterest)} total interest
-                      </p>
-                      <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Percent className="size-3" />
-                        {(data.annualInterestRateBps / 100).toFixed(1)}% p.a. flat · pay {formatCurrency(opt.totalPayable)} in total
-                      </p>
-                    </div>
-                    <Button onClick={() => choose(opt.tenureMonths)} disabled={choosing !== null}>
-                      {choosing === opt.tenureMonths ? "Choosing…" : "Choose this plan"}
-                    </Button>
-                  </CardContent>
-                </Card>
+              {data.options.map((opt, i) => (
+                <motion.div
+                  key={opt.tenureMonths}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: i * 0.06 }}
+                >
+                  <Card className="transition-shadow hover:shadow-md">
+                    <CardContent className="flex items-center justify-between gap-4 py-4">
+                      <div>
+                        <p className="font-heading text-lg font-semibold">{opt.tenureMonths} months</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatCurrency(opt.monthlyAmount)}/mo · {formatCurrency(opt.totalInterest)} total interest
+                        </p>
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Percent className="size-3" />
+                          {(data.annualInterestRateBps / 100).toFixed(1)}% p.a. flat · pay {formatCurrency(opt.totalPayable)} in total
+                        </p>
+                      </div>
+                      <Button onClick={() => choose(opt.tenureMonths)} disabled={choosing !== null}>
+                        {choosing === opt.tenureMonths ? "Choosing…" : "Choose this plan"}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               ))}
             </div>
           </>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

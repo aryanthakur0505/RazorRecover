@@ -12,7 +12,7 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { CustomerNotes } from "@/components/customers/CustomerNotes";
 import { useCustomerProfile } from "@/hooks/useCustomer";
 import { formatCurrency, formatDate, formatPercent, actionLabel, categoryLabel } from "@/lib/format";
-import { ArrowLeft, Wallet, Receipt, Percent, TrendingUp, Sparkles, User } from "lucide-react";
+import { ArrowLeft, Wallet, Receipt, Percent, TrendingUp, Sparkles, User, History } from "lucide-react";
 
 export default function CustomerProfilePage() {
   const params = useParams<{ id: string }>();
@@ -53,7 +53,7 @@ export default function CustomerProfilePage() {
         <>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+              <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
                 <User className="size-5 text-muted-foreground" />
                 {data.customer.name}
               </h1>
@@ -99,7 +99,10 @@ export default function CustomerProfilePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Payment History</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <History className="size-4 text-chart-1" />
+                Payment History
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {data.payments.length === 0 ? (

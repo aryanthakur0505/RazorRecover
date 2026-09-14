@@ -1,16 +1,16 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Cell, ResponsiveContainer, TooltipContentProps } from "recharts";
 import { EmptyState } from "@/components/shared/States";
 
 const PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--status-critical)"];
 
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload }: TooltipContentProps) {
   if (!active || !payload?.length) return null;
   const p = payload[0];
   return (
     <div className="rounded-lg border bg-popover px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{p.payload.label}</p>
+      <p className="font-medium">{(p.payload as { label: string }).label}</p>
       <p className="tabular-nums text-muted-foreground">{p.value} recoveries</p>
     </div>
   );
@@ -42,7 +42,7 @@ export function BreakdownBarChart({
           height={50}
         />
         <YAxis tick={{ fontSize: 12, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--muted)" }} />
+        <Tooltip content={CustomTooltip} cursor={{ fill: "var(--muted)" }} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={48}>
           {data.map((_, i) => (
             <Cell key={i} fill={PALETTE[i % PALETTE.length]} />

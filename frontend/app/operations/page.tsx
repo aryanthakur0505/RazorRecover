@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { useReEngagement } from "@/hooks/useReEngagement";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { resolveDateRange, DateRangePreset } from "@/lib/dateGroups";
 import { downloadFile, ApiError } from "@/lib/api";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, ListChecks } from "lucide-react";
 
 // COOLING_DOWN/EXHAUSTED aren't RecoveryAttempt statuses — they're payment-level buckets (see
 // useReEngagement) rendered through a different table below, not useOpportunities.
@@ -95,12 +95,16 @@ export default function OperationsPage() {
   }
 
   // A new filter view can hide/reorder what was selected — start the selection fresh rather than
-  // let a bulk-approve silently act on rows the merchant can no longer see.
-  useEffect(() => {
+  // let a bulk-approve silently act on rows the merchant can no longer see. Adjusted during render
+  // (not an effect) so the reset lands in the same commit as the filter change instead of a
+  // follow-up render.
+  const filterKey = `${status}|${debouncedQ}|${from}|${to}`;
+  const [syncedFilterKey, setSyncedFilterKey] = useState(filterKey);
+  if (filterKey !== syncedFilterKey) {
+    setSyncedFilterKey(filterKey);
     setSelectedIds(new Set());
     setSelectAllMatching(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, debouncedQ, from, to]);
+  }
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -125,7 +129,10 @@ export default function OperationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Recovery Operations</h1>
+        <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
+          <ListChecks className="size-6 text-chart-1" />
+          Recovery Operations
+        </h1>
         <p className="text-sm text-muted-foreground">
           Every recovery opportunity, its explanation, and the guardrails applied — approve, reject, or execute.
         </p>

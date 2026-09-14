@@ -88,7 +88,7 @@ export function AIImpactCard() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>AI chose</TableHead>
-                      <TableHead>Engine would've</TableHead>
+                      <TableHead>Engine would&apos;ve</TableHead>
                       <TableHead>Recovered</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -106,7 +106,7 @@ export function AIImpactCard() {
                                   className="gap-1 border-status-good/30 bg-status-good/10 text-success-text"
                                 >
                                   <Target className="size-3" />
-                                  Engine would've missed this
+                                  Engine would&apos;ve missed this
                                 </Badge>
                               )}
                             </div>
