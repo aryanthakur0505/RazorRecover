@@ -80,6 +80,26 @@ model Merchant {
   name      String
   createdAt DateTime @default(now())
 
+  // --- Auth ---
+  // Nullable rather than required: this project predates real accounts (a single hardcoded demo
+  // merchant, no login), and making these NOT NULL in the same migration that introduces them
+  // would need a data backfill Prisma's migration flow can't express declaratively. The API layer
+  // (routes/auth.ts) enforces both as required for every new signup and refuses to log in to a
+  // merchant that has neither set.
+  email        String? @unique
+  passwordHash String? // scrypt, see services/crypto.ts — never a raw or reversibly-encrypted value
+
+  // --- Razorpay (Test Mode) — each merchant connects their own account ---
+  // A payment-recovery tool only has anything to recover on the Razorpay account whose checkout
+  // actually failed, so this can't be a single shared app-wide credential once there's more than
+  // one real merchant — see routes/webhooks.ts and services/razorpay.ts. The secrets are encrypted
+  // at rest (services/crypto.ts, AES-256-GCM keyed off SESSION_SECRET) since a DB read (a backup,
+  // a compromised read replica, anyone with prisma studio access) should not hand over live API
+  // credentials in plaintext.
+  razorpayKeyId               String?
+  razorpayKeySecretEncrypted  String?
+  razorpayWebhookSecretEncrypted String?
+
   customers       Customer[]
   payments        Payment[]
   attempts        RecoveryAttempt[]

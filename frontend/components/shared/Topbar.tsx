@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTheme } from "next-themes";
 import { Menu, ShieldHalf, Sun, Moon, LogOut, User } from "lucide-react";
@@ -51,8 +51,15 @@ function ThemeToggle() {
 }
 
 function MerchantMenu() {
-  const { merchantName } = useSession();
-  const initial = merchantName?.trim()?.[0]?.toUpperCase() ?? "M";
+  const { merchant, logout } = useSession();
+  const router = useRouter();
+  const name = merchant?.name;
+  const initial = name?.trim()?.[0]?.toUpperCase() ?? "M";
+
+  async function handleSignOut() {
+    await logout();
+    router.push("/login");
+  }
 
   return (
     <DropdownMenu>
@@ -62,18 +69,18 @@ function MerchantMenu() {
             <AvatarFallback>{initial}</AvatarFallback>
           </Avatar>
           <span className="hidden max-w-32 truncate text-sm text-muted-foreground sm:inline">
-            {merchantName ?? "Merchant"}
+            {name ?? "Merchant"}
           </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel className="truncate">{merchantName ?? "Merchant"}</DropdownMenuLabel>
+        <DropdownMenuLabel className="truncate">{merchant?.email ?? name ?? "Merchant"}</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={() => router.push("/policies")}>
           <User />
-          Account
+          Account &amp; Razorpay
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={handleSignOut}>
           <LogOut />
           Sign out
         </DropdownMenuItem>

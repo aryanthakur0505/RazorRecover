@@ -15,14 +15,25 @@ export const webhooksRouter = Router();
  * This route is mounted with an `express.raw()` body parser (see server.ts) so we can verify
  * the HMAC signature over the exact bytes Razorpay sent, before any JSON parsing happens.
  * An unverified webhook is NEVER processed.
+ *
+ * The merchant id in the URL (`/api/webhooks/razorpay/:merchantId`) is what each merchant pastes
+ * into their own Razorpay dashboard's webhook config, alongside their own webhook secret (see
+ * routes/merchant.ts) — that's what makes an incoming webhook attributable to the right merchant
+ * at all now that there's more than one. It's not itself a secret (a merchantId is a public-ish
+ * identifier used throughout the URL scheme already, e.g. /offer/:id's plan ids); the signature
+ * check below is what actually authenticates the request.
  */
 webhooksRouter.post(
-  "/razorpay",
+  "/razorpay/:merchantId",
   asyncHandler(async (req, res) => {
     const rawBody = (req.body as Buffer).toString("utf8");
     const signature = req.header("x-razorpay-signature");
 
-    if (!verifyWebhookSignature(rawBody, signature)) {
+    const merchant = await prisma.merchant.findUnique({
+      where: { id: req.params.merchantId },
+      select: { id: true, razorpayWebhookSecretEncrypted: true },
+    });
+    if (!merchant || !verifyWebhookSignature(rawBody, signature, merchant.razorpayWebhookSecretEncrypted)) {
       res.status(400).json({ error: "Invalid webhook signature" });
       return;
     }
@@ -42,9 +53,9 @@ webhooksRouter.post(
     const orderEntity = event.payload.order?.entity;
 
     // Idempotency key: Razorpay's own event id isn't consistently present in every payload
-    // shape, so we derive a stable one from event + entity id + timestamp — a redelivered
-    // webhook for the same event always produces the same key.
-    const razorpayEventId = `${event.event}:${paymentEntity?.id ?? orderEntity?.id ?? "unknown"}:${event.created_at ?? 0}`;
+    // shape, so we derive a stable one from merchant + event + entity id + timestamp — a
+    // redelivered webhook for the same event always produces the same key.
+    const razorpayEventId = `${merchant.id}:${event.event}:${paymentEntity?.id ?? orderEntity?.id ?? "unknown"}:${event.created_at ?? 0}`;
 
     const existing = await prisma.webhookEvent.findUnique({ where: { razorpayEventId } });
     if (existing) {
@@ -55,12 +66,6 @@ webhooksRouter.post(
     await prisma.webhookEvent.create({
       data: { razorpayEventId, eventType: event.event, payload: json },
     });
-
-    const merchant = await prisma.merchant.findFirst();
-    if (!merchant) {
-      res.status(200).json({ received: true, note: "no merchant provisioned yet" });
-      return;
-    }
 
     if (event.event === "payment.failed" && paymentEntity) {
       const customerEmail = paymentEntity.email ?? `unknown+${paymentEntity.id}@example.test`;
@@ -83,7 +88,9 @@ webhooksRouter.post(
         eventType: "payment.failed",
       });
 
-      let payment = await prisma.payment.findFirst({ where: { razorpayPaymentId: paymentEntity.id } });
+      let payment = await prisma.payment.findFirst({
+        where: { merchantId: merchant.id, razorpayPaymentId: paymentEntity.id },
+      });
       if (!payment) {
         payment = await prisma.payment.create({
           data: {
@@ -128,6 +135,7 @@ webhooksRouter.post(
     if ((event.event === "order.paid" || event.event === "payment.captured") && (orderEntity || paymentEntity)) {
       const payment = await prisma.payment.findFirst({
         where: {
+          merchantId: merchant.id,
           OR: [
             orderEntity ? { razorpayOrderId: orderEntity.id } : undefined,
             paymentEntity ? { razorpayPaymentId: paymentEntity.id } : undefined,

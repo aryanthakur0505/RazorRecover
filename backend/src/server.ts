@@ -6,7 +6,9 @@ import rateLimit from "express-rate-limit";
 import { env } from "./env";
 import { errorHandler } from "./middleware/errorHandler";
 import { webhooksRouter } from "./routes/webhooks";
+import { authRouter } from "./routes/auth";
 import { sessionRouter } from "./routes/session";
+import { merchantRouter } from "./routes/merchant";
 import { paymentsRouter } from "./routes/payments";
 import { customersRouter } from "./routes/customers";
 import { recoveryRouter } from "./routes/recovery";
@@ -87,6 +89,17 @@ const publicOfferLimiter = rateLimit({
 });
 app.use("/api/public/emi-offers", publicOfferLimiter);
 
+// Login/signup brute-force protection — deliberately much tighter than the general API limit and
+// keyed purely on request volume (no lockout state to manage, no way to lock a real user out of
+// their own account by having someone else fail their password repeatedly).
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/auth", authLimiter);
+
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", service: "razorrecover-backend", time: new Date().toISOString() });
 });
@@ -98,7 +111,9 @@ app.use("/api/webhooks", express.raw({ type: "application/json" }), webhooksRout
 app.use(express.json());
 app.use(cookieParser());
 
+app.use("/api/auth", authRouter);
 app.use("/api/session", sessionRouter);
+app.use("/api/merchant", merchantRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/recovery", recoveryRouter);

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { prisma } from "../db";
 import { writeAudit } from "./auditService";
-import { createPaymentLink, createRetryOrder } from "./razorpay";
+import { createPaymentLink, createRetryOrder, getRazorpayClient } from "./razorpay";
 import { evaluatePolicy } from "./policyEngine";
 import { countRecentCommunications } from "./customerStats";
 import { createEmiOffer, createPromisePlan } from "./emiService";
@@ -362,15 +362,22 @@ async function performAction(
     return { simulated: true };
   }
 
+  // Only fetched when actually needed (not every action calls Razorpay) — and only here, right
+  // before the call that needs it, rather than earlier in executeAttempt: RazorpayNotConnectedError
+  // for a merchant who hasn't finished setup yet should behave exactly like any other Razorpay call
+  // failing (falls into the same catch in executeAttempt → attempt marked FAILED/API_ERROR), not a
+  // special case.
+  const client = getRazorpayClient(await requireMerchantCredentials(attempt.merchantId));
+
   if (attempt.action === "RETRY") {
-    return createRetryOrder({
+    return createRetryOrder(client, {
       amount: payment.amount,
       currency: payment.currency,
       receipt: attempt.idempotencyKey,
     });
   }
   if (attempt.action === "PAYMENT_LINK") {
-    return createPaymentLink({
+    return createPaymentLink(client, {
       amount: payment.amount,
       currency: payment.currency,
       customerName: payment.customer.name,
@@ -380,6 +387,13 @@ async function performAction(
     });
   }
   return null;
+}
+
+async function requireMerchantCredentials(merchantId: string) {
+  return prisma.merchant.findUniqueOrThrow({
+    where: { id: merchantId },
+    select: { razorpayKeyId: true, razorpayKeySecretEncrypted: true, razorpayWebhookSecretEncrypted: true },
+  });
 }
 
 /**

@@ -33,7 +33,7 @@ export default function CommandCenterPage() {
   const { data: metrics, error: metricsError, isLoading: metricsLoading, mutate: mutateMetrics } = useDashboardMetrics();
   const { data: charts, isLoading: chartsLoading } = useCharts();
   const { data: activity, isLoading: activityLoading } = useRecentActivity();
-  const { merchantName } = useSession();
+  const { merchant } = useSession();
 
   return (
     <div className="space-y-6">
@@ -58,7 +58,7 @@ export default function CommandCenterPage() {
       <div className="hidden print:block">
         <h1 className="text-2xl font-semibold">RazorRecover — Executive Summary</h1>
         <p className="text-sm text-muted-foreground">
-          {merchantName} · Generated {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+          {merchant?.name} · Generated {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
 

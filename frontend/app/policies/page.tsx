@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PolicyForm } from "@/components/policies/PolicyForm";
+import { RazorpayConnectionCard } from "@/components/policies/RazorpayConnectionCard";
 import { DoNotContactList } from "@/components/policies/DoNotContactList";
 import { AuditTable } from "@/components/policies/AuditTable";
 import { ListFilterBar } from "@/components/shared/ListFilterBar";
@@ -44,6 +45,8 @@ export default function PoliciesPage() {
           Configure the guardrails every recovery action must pass, and review the complete, append-only audit trail.
         </p>
       </div>
+
+      <RazorpayConnectionCard />
 
       {policyError ? (
         <ErrorState title="Couldn't load policy" description={policyError.message} onRetry={() => mutatePolicy()} />

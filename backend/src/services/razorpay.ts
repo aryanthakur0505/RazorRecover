@@ -1,23 +1,52 @@
 import crypto from "crypto";
 import Razorpay from "razorpay";
-import { env } from "../env";
-
-export const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET,
-});
+import { decryptSecret } from "./crypto";
 
 /**
- * Verifies a Razorpay webhook signature using HMAC-SHA256 over the raw request body,
- * per Razorpay's documented verification scheme. Uses a timing-safe comparison.
- * https://razorpay.com/docs/webhooks/validate-test/
+ * A merchant's own Razorpay Test Mode credentials, as stored on their Merchant row. Each real
+ * merchant connects their own account (see the Merchant model doc in schema.prisma) — a
+ * payment-recovery tool only has anything to recover on the account whose checkout actually
+ * failed, so this can no longer be one app-wide credential from env once there's more than one
+ * real merchant.
  */
-export function verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
-  if (!signature) return false;
-  const expected = crypto
-    .createHmac("sha256", env.RAZORPAY_WEBHOOK_SECRET)
-    .update(rawBody)
-    .digest("hex");
+export interface MerchantRazorpayCredentials {
+  razorpayKeyId: string | null;
+  razorpayKeySecretEncrypted: string | null;
+  razorpayWebhookSecretEncrypted: string | null;
+}
+
+export class RazorpayNotConnectedError extends Error {
+  constructor() {
+    super("This merchant hasn't connected a Razorpay account yet.");
+  }
+}
+
+/** Builds a Razorpay client from a merchant's own stored (encrypted) credentials. Throws
+ *  RazorpayNotConnectedError rather than silently falling back to anything shared — there is no
+ *  app-wide Razorpay account for this to fall back to. */
+export function getRazorpayClient(merchant: MerchantRazorpayCredentials): Razorpay {
+  if (!merchant.razorpayKeyId || !merchant.razorpayKeySecretEncrypted) {
+    throw new RazorpayNotConnectedError();
+  }
+  return new Razorpay({
+    key_id: merchant.razorpayKeyId,
+    key_secret: decryptSecret(merchant.razorpayKeySecretEncrypted),
+  });
+}
+
+/**
+ * Verifies a Razorpay webhook signature using HMAC-SHA256 over the raw request body, against
+ * *this* merchant's own webhook secret — per Razorpay's documented verification scheme, with a
+ * timing-safe comparison. https://razorpay.com/docs/webhooks/validate-test/
+ */
+export function verifyWebhookSignature(
+  rawBody: string,
+  signature: string | undefined,
+  webhookSecretEncrypted: string | null,
+): boolean {
+  if (!signature || !webhookSecretEncrypted) return false;
+  const secret = decryptSecret(webhookSecretEncrypted);
+  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
   const expectedBuf = Buffer.from(expected, "utf8");
   const actualBuf = Buffer.from(signature, "utf8");
   if (expectedBuf.length !== actualBuf.length) return false;
@@ -35,8 +64,8 @@ export interface CreatePaymentLinkParams {
 
 /** Creates a real Razorpay Test Mode payment link. Only ever called from executionService,
  *  never directly by the AI layer. */
-export async function createPaymentLink(params: CreatePaymentLinkParams) {
-  return razorpay.paymentLink.create({
+export async function createPaymentLink(client: Razorpay, params: CreatePaymentLinkParams) {
+  return client.paymentLink.create({
     amount: params.amount,
     currency: params.currency,
     accept_partial: false,
@@ -58,18 +87,18 @@ export interface CreateRetryOrderParams {
 
 /** Creates a fresh Razorpay Order to back a retry attempt (Test Mode cannot silently
  *  re-charge a previously failed card — this gives the customer a valid order to complete). */
-export async function createRetryOrder(params: CreateRetryOrderParams) {
-  return razorpay.orders.create({
+export async function createRetryOrder(client: Razorpay, params: CreateRetryOrderParams) {
+  return client.orders.create({
     amount: params.amount,
     currency: params.currency,
     receipt: params.receipt,
   });
 }
 
-export async function fetchPayment(paymentId: string) {
-  return razorpay.payments.fetch(paymentId);
+export async function fetchPayment(client: Razorpay, paymentId: string) {
+  return client.payments.fetch(paymentId);
 }
 
-export async function fetchOrder(orderId: string) {
-  return razorpay.orders.fetch(orderId);
+export async function fetchOrder(client: Razorpay, orderId: string) {
+  return client.orders.fetch(orderId);
 }

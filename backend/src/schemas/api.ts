@@ -80,6 +80,26 @@ export const customerNoteSchema = z.object({
   body: z.string().trim().min(1).max(2000),
 });
 
+export const signupSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().toLowerCase().email().max(320),
+  password: z.string().min(8).max(200),
+});
+
+export const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(320),
+  password: z.string().min(1).max(200),
+});
+
+// Every field optional and independently updatable — a merchant might set just the key id first,
+// or rotate only the webhook secret after regenerating it in the Razorpay dashboard, without
+// having to resupply everything else. An empty string clears a field (see routes/merchant.ts).
+export const razorpayCredentialsSchema = z.object({
+  razorpayKeyId: z.string().trim().max(200).optional(),
+  razorpayKeySecret: z.string().trim().max(200).optional(),
+  razorpayWebhookSecret: z.string().trim().max(200).optional(),
+});
+
 export const retryOverrideSchema = z.object({
   note: z.string().max(500).optional(),
 });

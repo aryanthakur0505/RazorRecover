@@ -17,6 +17,7 @@ RazorRecover replaces that blunt retry with a deterministic, explainable pipelin
 - **EMI / promise-to-pay** — an `INSUFFICIENT_FUNDS` payment can be offered a 6/12/24-month installment plan (flat interest, customer picks the tenure via a public link, no login); a promise made on a follow-up call is logged the same way as a single-installment plan.
 - **Bulk operations at any scale** — approve/reject a handful of items by checkbox, or "select all N matching this filter" and let a background job process the whole backlog with progress polling.
 - **Idempotent, signature-verified webhooks** — Razorpay webhooks are HMAC-verified over the raw request body and deduplicated by a derived event id before any business logic runs.
+- **Real multi-tenant accounts** — email/password signup and login, each merchant's data (customers, payments, policies, audit log) fully isolated, and each merchant connects their own Razorpay Test Mode account with credentials encrypted at rest.
 - **Append-only audit trail** — every webhook, score calculation, AI recommendation, policy check, approval, execution, and outcome is written as a permanent row; nothing is ever edited or deleted.
 - **Seeded simulation mode** — generate a reproducible synthetic dataset (100/500/1,000 payments) that runs through the exact same pipeline as live traffic, for testing and demos without needing real webhook traffic.
 
@@ -111,10 +112,10 @@ RazorRecover/
 
 ```bash
 cd backend
-cp .env.example .env        # fill in DATABASE_URL, Razorpay keys, Groq key, SESSION_SECRET
+cp .env.example .env        # fill in DATABASE_URL, Groq key, SESSION_SECRET
 npm install
 npx prisma migrate dev --name init   # creates the database tables
-npm run seed                          # creates the demo merchant + default policy
+npm run seed                          # creates a demo merchant (login: demo@razorrecover.local / demo12345) + default policy
 npm run dev                           # starts the API on http://localhost:4000
 ```
 
@@ -129,7 +130,7 @@ npm install
 npm run dev                  # starts the app on http://localhost:3002
 ```
 
-Open `http://localhost:3002` — the app calls `POST /api/session/init` on load, which finds-or-creates a single demo merchant and sets a signed session cookie (there's no login screen; this is a single-merchant demo setup).
+Open `http://localhost:3002` — you'll land on the login screen. Log in with the seeded demo account (`demo@razorrecover.local` / `demo12345`), or sign up for a new one; each account's data (customers, payments, policies) is fully isolated from every other merchant's.
 
 ### Other useful commands
 
@@ -153,12 +154,12 @@ npx prisma studio          # inspect the database with a GUI
 | `NODE_ENV` | `development` or `production` |
 | `FRONTEND_URL` | Exact origin allowed by CORS — a single URL, never a wildcard |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay Test Mode API credentials |
-| `RAZORPAY_WEBHOOK_SECRET` | Used to verify the `X-Razorpay-Signature` header via HMAC-SHA256 |
 | `GROQ_API_KEY` | Optional. If unset, the AI layer reports "unavailable" and every ambiguous case routes to human review instead |
 | `GROQ_MODEL` | Model name for the Groq chat-completions API (defaults to `openai/gpt-oss-120b`) |
 | `GROQ_BASE_URL` | OpenAI-compatible base URL — can point at a different compatible provider without code changes |
-| `SESSION_SECRET` | Signs the demo merchant's session cookie |
+| `SESSION_SECRET` | Signs each merchant's session cookie; also the basis for encrypting stored Razorpay credentials at rest (see below) |
+
+Razorpay credentials are **not** an env var — each merchant connects their own Razorpay Test Mode account from inside the app (log in → **Policies & Audit** → **Razorpay Connection**), since a payment-recovery tool only has anything to recover on the account whose checkout actually failed. Simulations don't need this at all; only live webhooks and real retries/payment links do.
 
 **Frontend** (`frontend/.env.local`):
 
@@ -170,7 +171,7 @@ npx prisma studio          # inspect the database with a GUI
 
 ## Usage
 
-1. **Open the dashboard** (`http://localhost:3002`) — a session initializes automatically against a single demo merchant, no sign-up needed.
+1. **Log in** (`http://localhost:3002`) — with the seeded demo account or your own signup.
 2. **Generate data** — from the Command Center, run a simulation:
    - **100** or **1,000** payments generates a fresh, randomized (but seed-reproducible) dataset every run.
    - **500** rebuilds a fixed, hand-specified demo dataset instead of a random one (400 succeed outright, 100 fail across a deliberate mix of recovered / not-recovered / never-attempted / AI-assisted / EMI cases) — useful when you want the exact same numbers every time, e.g. for a recorded demo.
@@ -182,14 +183,16 @@ npx prisma studio          # inspect the database with a GUI
 Example: checking the AI-escalation health of the system directly against the API —
 
 ```bash
-curl -X POST http://localhost:4000/api/session/init -c cookies.txt
-curl -b cookies.txt "http://localhost:4000/api/recovery/opportunities?status=AWAITING_APPROVAL&pageSize=1"
+curl -X POST http://localhost:4000/api/auth/login -H "Content-Type: application/json" -H "X-Requested-With: XMLHttpRequest" \
+  -d '{"email":"demo@razorrecover.local","password":"demo12345"}' -c cookies.txt
+curl -b cookies.txt -H "X-Requested-With: XMLHttpRequest" "http://localhost:4000/api/recovery/opportunities?status=AWAITING_APPROVAL&pageSize=1"
 ```
 
 ## Architecture / Technical Details
 
 - **Frontend ↔ backend**: the Next.js app talks to the Express API over `fetch` with `credentials: "include"`, using a single `NEXT_PUBLIC_API_URL`. There's no server-side rendering dependency on the backend — it's a plain client-fetched SPA-style app on top of the App Router.
-- **Session**: a signed cookie (`SESSION_SECRET`) identifies a single demo merchant per session — there's no real authentication system, which is an intentional scope decision, not an oversight.
+- **Auth**: real accounts (`routes/auth.ts`) — email + password (scrypt-hashed, `services/crypto.ts`), a signed HMAC session cookie (`SESSION_SECRET`) identifying the merchant, and a custom-header CSRF check (`middleware/session.ts`) on every mutating request. Every route scopes its queries by the session's merchantId, so one merchant's data is never reachable from another's session.
+- **Multi-tenant Razorpay**: each merchant connects their own Razorpay Test Mode account (`routes/merchant.ts`) — the key secret and webhook secret are encrypted at rest (AES-256-GCM, key derived from `SESSION_SECRET`) and never read back out through any route. Webhooks are per-merchant (`/api/webhooks/razorpay/:merchantId`), verified against that merchant's own stored webhook secret.
 - **Database access**: all backend data access goes through Prisma against PostgreSQL. The schema separates `Payment` (immutable facts about a transaction) from `RecoveryAttempt` (one row per action taken on it, with `attemptNumber` for dunning retries), and `InstallmentPlan`/`Installment` model EMI plans and logged promises with the same underlying tables.
 - **Webhook integrity**: `POST /api/webhooks/razorpay` is mounted with `express.raw()` so the HMAC signature is verified over the exact bytes Razorpay sent, using `crypto.timingSafeEqual`. Each event is deduplicated by a derived id in the `WebhookEvent` table before anything else runs.
 - **Idempotency**: every recovery attempt has an idempotency key (`sha256(paymentId:attemptNumber:action)`), checked by `executionService` before any Razorpay call — a duplicate webhook, a scheduler re-scan, or a double-click all resolve to a safe no-op.

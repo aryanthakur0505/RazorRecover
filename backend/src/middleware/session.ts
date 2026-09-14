@@ -20,13 +20,18 @@ function verify(token: string): string | null {
   return crypto.timingSafeEqual(expectedBuf, actualBuf) ? merchantId : null;
 }
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: env.isProduction,
+  sameSite: (env.isProduction ? "none" : "lax") as "none" | "lax",
+};
+
 export function setSessionCookie(res: Response, merchantId: string) {
-  res.cookie(COOKIE_NAME, sign(merchantId), {
-    httpOnly: true,
-    secure: env.isProduction,
-    sameSite: env.isProduction ? "none" : "lax",
-    maxAge: 1000 * 60 * 60 * 24 * 30,
-  });
+  res.cookie(COOKIE_NAME, sign(merchantId), { ...COOKIE_OPTIONS, maxAge: 1000 * 60 * 60 * 24 * 30 });
+}
+
+export function clearSessionCookie(res: Response) {
+  res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS);
 }
 
 declare global {
@@ -63,7 +68,7 @@ export async function requireSession(req: Request, res: Response, next: NextFunc
   const merchantId = token ? verify(token) : null;
 
   if (!merchantId) {
-    res.status(401).json({ error: "No valid session. Call POST /api/session/init first." });
+    res.status(401).json({ error: "No valid session. Please log in." });
     return;
   }
 

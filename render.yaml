@@ -15,12 +15,8 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false
-      - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
+      # Razorpay credentials are no longer app-wide env vars — each merchant connects their own
+      # account from inside the app (Policies & Audit → Razorpay Connection). See .env.example.
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL

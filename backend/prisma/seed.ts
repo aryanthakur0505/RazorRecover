@@ -1,13 +1,32 @@
 import { PrismaClient } from "@prisma/client";
+import { hashPassword } from "../src/services/crypto";
 
 const prisma = new PrismaClient();
+
+// A known login for the demo merchant — real accounts (routes/auth.ts) didn't exist when this
+// project started as a single hardcoded demo merchant with no login screen, so a merchant created
+// before that migration (this one) has no email/password of its own. Backfilling one fixed,
+// documented set of demo credentials here means that merchant's already-accumulated data (weeks
+// of seeded simulation history, AI demo cases, etc.) stays reachable through the real login screen
+// instead of being orphaned. Change this password after first login if this ever runs against
+// anything other than a local/demo database.
+const DEMO_EMAIL = "demo@razorrecover.local";
+const DEMO_PASSWORD = "demo12345";
 
 async function main() {
   const name = "Aurora Retail (Demo)";
   let merchant = await prisma.merchant.findFirst({ where: { name } });
   if (!merchant) {
-    merchant = await prisma.merchant.create({ data: { name } });
-    console.log(`Created demo merchant: ${merchant.id}`);
+    merchant = await prisma.merchant.create({
+      data: { name, email: DEMO_EMAIL, passwordHash: await hashPassword(DEMO_PASSWORD) },
+    });
+    console.log(`Created demo merchant: ${merchant.id} (login: ${DEMO_EMAIL} / ${DEMO_PASSWORD})`);
+  } else if (!merchant.passwordHash) {
+    merchant = await prisma.merchant.update({
+      where: { id: merchant.id },
+      data: { email: merchant.email ?? DEMO_EMAIL, passwordHash: await hashPassword(DEMO_PASSWORD) },
+    });
+    console.log(`Backfilled login for existing demo merchant: ${merchant.id} (login: ${merchant.email} / ${DEMO_PASSWORD})`);
   } else {
     console.log(`Demo merchant already exists: ${merchant.id}`);
   }

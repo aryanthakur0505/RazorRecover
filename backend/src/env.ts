@@ -8,9 +8,6 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   FRONTEND_URL: z.string().min(1, "FRONTEND_URL is required"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  RAZORPAY_KEY_ID: z.string().min(1, "RAZORPAY_KEY_ID is required"),
-  RAZORPAY_KEY_SECRET: z.string().min(1, "RAZORPAY_KEY_SECRET is required"),
-  RAZORPAY_WEBHOOK_SECRET: z.string().min(1, "RAZORPAY_WEBHOOK_SECRET is required"),
   // Groq (console.groq.com) — free, no card required, and speaks the identical OpenAI-style
   // chat-completions + tool-calling API this app's AI layer already uses, so the same client
   // code works unchanged. GROQ_BASE_URL is only there in case you ever want to point at a
