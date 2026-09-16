@@ -231,7 +231,6 @@ curl -b cookies.txt -H "X-Requested-With: XMLHttpRequest" "http://localhost:4000
 - Replace the in-memory bulk-job/simulation-job tracker (a plain `Map`, explicitly noted in the code as single-instance-only) with a persisted job store for multi-instance deployments.
 - Replace the interval-polling scheduler with a real queue (e.g. Redis-backed) once retry/installment volume outgrows a single-instance poll loop.
 - Expand automated test coverage beyond the current `decisionEngine` / `policyEngine` / `scoring` unit tests (e.g. route-level integration tests, webhook signature edge cases).
-- Support real merchant authentication/multi-tenant login instead of the current single demo-merchant session model.
 - Support currencies other than INR (amounts are currently paise-denominated throughout).
 
 ## Screenshots / Demo
