@@ -230,7 +230,7 @@ curl -b cookies.txt -H "X-Requested-With: XMLHttpRequest" "http://localhost:4000
 
 - Replace the in-memory bulk-job/simulation-job tracker (a plain `Map`, explicitly noted in the code as single-instance-only) with a persisted job store for multi-instance deployments.
 - Replace the interval-polling scheduler with a real queue (e.g. Redis-backed) once retry/installment volume outgrows a single-instance poll loop.
-- Expand automated test coverage beyond the current `decisionEngine` / `policyEngine` / `scoring` unit tests (e.g. route-level integration tests, webhook signature edge cases).
+- Expand automated test coverage beyond the current `decisionEngine` / `policyEngine` / `scoring` unit tests (e.g. route-level integration tests, webhook signature edge cases, and the CSV export's formula-injection guard in `utils/csv.ts`).
 - Support currencies other than INR (amounts are currently paise-denominated throughout).
 
 ## Screenshots / Demo
