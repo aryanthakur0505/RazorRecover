@@ -152,7 +152,7 @@ npx prisma studio          # inspect the database with a GUI
 |---|---|
 | `PORT` | Port the Express server listens on (Render sets this automatically in production) |
 | `NODE_ENV` | `development` or `production` |
-| `FRONTEND_URL` | Exact origin allowed by CORS — a single URL, never a wildcard |
+| `FRONTEND_URL` | Exact origin allowed by CORS — a single URL, never a wildcard. Local dev's frontend runs on port `3002` (see below), so set this to `http://localhost:3002`, not the `3000` in `.env.example` |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `GROQ_API_KEY` | Optional. If unset, the AI layer reports "unavailable" and every ambiguous case routes to human review instead |
 | `GROQ_MODEL` | Model name for the Groq chat-completions API (defaults to `openai/gpt-oss-120b`) |
